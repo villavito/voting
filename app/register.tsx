@@ -1,7 +1,8 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { registerUser } from "./(auth)/login";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
+import { registerUser } from "./services/authService";
+import { auth } from "../firebase";
 
 export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState("");
@@ -13,35 +14,74 @@ export default function RegisterScreen() {
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const onRegister = () => {
+  const onRegister = async () => {
     if (!displayName || !username || !password || !confirm) {
-      Alert.alert("Missing fields", "Fill all fields.");
+      Alert.alert("Missing fields", "Please fill in all fields.");
       return;
     }
+
     const email = username.trim().toLowerCase();
-    if (!/^[^\s@]+@gmail\.com$/.test(email)) {
-      Alert.alert("Invalid Gmail", "Username must be a valid Gmail address (e.g. user@gmail.com).");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
       return;
     }
+
     if (password !== confirm) {
-      Alert.alert("Password mismatch", "Passwords do not match.");
+      Alert.alert("Password Mismatch", "Passwords do not match.");
       return;
     }
+
     if (!course) {
-      Alert.alert("Course required", "Please select a course.");
+      Alert.alert("Course Required", "Please select your course.");
       return;
     }
+
     if (studentId.length !== 10) {
-      Alert.alert("Invalid Student ID", "Student ID must be a 10-digit number.");
+      Alert.alert("Invalid Student ID", "Student ID must be 10 digits long.");
       return;
     }
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      registerUser(email, password, displayName, course, studentId);
-      Alert.alert("Success", "Account created. You can now login.");
-      router.replace("/login");
+    
+    try {
+      // Register the user with Firebase Auth
+      const userCredential = await registerUser(email, password, {
+        displayName,
+        course,
+        studentId,
+        approved: false, // New users need admin approval
+        isAdmin: false, // Only set to true for admin users
+        createdAt: new Date()
+      });
+
+      Alert.alert(
+        "Registration Successful",
+        "Your account has been created and is pending admin approval. You will be notified once approved.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace("/(auth)/login");
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      let errorMessage = "Failed to register. Please try again.";
+      
+      if (error.code === "auth/email-already-in-use") {
+        errorMessage = "This email is already registered. Please use a different email or login.";
+      } else if (error.code === "auth/weak-password") {
+        errorMessage = "Password should be at least 6 characters long.";
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "Please enter a valid email address.";
+      }
+      
+      Alert.alert("Registration Failed", errorMessage);
+    } finally {
       setIsSubmitting(false);
-    }, 400);
+    }
   };
 
   return (
@@ -83,8 +123,20 @@ export default function RegisterScreen() {
         style={styles.input}
         maxLength={10}
       />
-      <Pressable onPress={onRegister} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]} disabled={isSubmitting}>
-        <Text style={styles.buttonText}>{isSubmitting ? "Creating..." : "Register"}</Text>
+      <Pressable 
+        onPress={onRegister} 
+        style={({ pressed }) => [
+          styles.button, 
+          pressed && styles.buttonPressed,
+          isSubmitting && styles.buttonDisabled
+        ]} 
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Register</Text>
+        )}
       </Pressable>
     </View>
   );
@@ -96,15 +148,27 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, color: "#666", fontWeight: "600", marginTop: 6 },
   input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12 },
   dropdownButton: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12 },
-  dropdownText: { fontSize: 16 },
   placeholderText: { color: "#999" },
   dropdownArrow: { fontSize: 12, color: "#666" },
   dropdownList: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, backgroundColor: "#fff", marginTop: 2 },
   dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
   dropdownItemText: { fontSize: 16 },
-  button: { backgroundColor: "#1e90ff", padding: 14, borderRadius: 10, alignItems: "center" },
-  buttonPressed: { opacity: 0.75 },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  button: { 
+    backgroundColor: "#3b82f6", 
+    padding: 15,
+    borderRadius: 8, 
+    alignItems: "center",
+    marginTop: 10,
+  },
+  buttonPressed: { 
+    opacity: 0.8 
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonText: { 
+    color: "#fff", 
+    fontWeight: "600", 
+    fontSize: 16 
+  },
 });
-
-

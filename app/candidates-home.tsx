@@ -1,11 +1,29 @@
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { listCandidates } from "./(auth)/login";
+import { listCandidates } from "./services/firebaseService";
 
 export default function CandidatesHomeScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const candidates = useMemo(() => listCandidates(), [refreshKey]);
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load candidates on component mount and refresh
+  useEffect(() => {
+    loadCandidates();
+  }, [refreshKey]);
+
+  const loadCandidates = async () => {
+    try {
+      setLoading(true);
+      const candidatesData = await listCandidates(false);
+      setCandidates(candidatesData);
+    } catch (error) {
+      console.error('Error loading candidates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
@@ -19,7 +37,11 @@ export default function CandidatesHomeScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {candidates.length === 0 ? (
+      {loading ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Loading candidates...</Text>
+        </View>
+      ) : candidates.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No candidates registered yet.</Text>
         </View>

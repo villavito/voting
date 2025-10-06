@@ -1,14 +1,14 @@
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View, Modal, TouchableOpacity, ScrollView } from "react-native";
-import { addCandidate, listCandidates, removeCandidate, updateCandidate } from "./(auth)/login";
+import { addCandidate, listCandidates, updateCandidate, deleteCandidate } from './services/firebaseService';
 
 export default function ManageCandidatesScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showPositionDropdown, setShowPositionDropdown] = useState(false);
-  const candidates = useMemo(() => listCandidates(), [refreshKey]);
+  const candidates = useMemo(() => listCandidates(true), [refreshKey]);
 
   // Position options
   const positionOptions = [
@@ -38,6 +38,10 @@ export default function ManageCandidatesScreen() {
   };
 
   const onEdit = (candidate: any) => {
+    if (!candidate.name.trim() || !candidate.position.trim()) {
+      Alert.alert("Missing fields", "Name and Position are required.");
+      return;
+    }
     setEditingId(candidate.id);
     setName(candidate.name);
     setPosition(candidate.position);
@@ -54,6 +58,27 @@ export default function ManageCandidatesScreen() {
     refresh();
   };
 
+  const onPublish = (id: string, name: string, isPublished: boolean) => {
+    if (!id || !name.trim()) {
+      Alert.alert("Missing fields", "ID and Name are required.");
+      return;
+    }
+    Alert.alert(
+      isPublished ? "Unpublish Candidate" : "Publish Candidate",
+      `Are you sure you want to ${isPublished ? "unpublish" : "publish"} ${name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isPublished ? "Unpublish" : "Publish",
+          onPress: () => {
+            updateCandidate(id, { published: !isPublished });
+            refresh();
+          },
+        },
+      ]
+    );
+  };
+
   const onDelete = (id: string, name: string) => {
     Alert.alert("Delete Candidate", `Are you sure you want to delete ${name}?`, [
       { text: "Cancel", style: "cancel" },
@@ -63,6 +88,7 @@ export default function ManageCandidatesScreen() {
         onPress: () => {
           removeCandidate(id);
           refresh();
+          resetForm();
         },
       },
     ]);
@@ -126,7 +152,14 @@ export default function ManageCandidatesScreen() {
             renderItem={({ item }) => (
               <View style={styles.candidateCard}>
                 <View style={styles.candidateInfo}>
-                  <Text style={styles.candidateName}>{item.name}</Text>
+                  <View style={styles.candidateHeader}>
+                    <Text style={styles.candidateName}>{item.name}</Text>
+                    <View style={[styles.statusBadge, item.published ? styles.publishedBadge : styles.unpublishedBadge]}>
+                      <Text style={[styles.statusText, item.published ? styles.publishedText : styles.unpublishedText]}>
+                        {item.published ? "Published" : "Draft"}
+                      </Text>
+                    </View>
+                  </View>
                   <Text style={styles.candidatePosition}>{item.position}</Text>
                 </View>
                 <View style={styles.actions}>
@@ -141,6 +174,18 @@ export default function ManageCandidatesScreen() {
                     style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
                   >
                     <Text style={styles.deleteButtonText}>Delete</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => onPublish(item.id, item.name, item.published)}
+                    style={({ pressed }) => [
+                      styles.publishButton,
+                      pressed && styles.buttonPressed,
+                      item.published && styles.unpublishButton
+                    ]}
+                  >
+                    <Text style={[styles.publishButtonText, item.published && styles.unpublishButtonText]}>
+                      {item.published ? "Unpublish" : "Publish"}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -332,9 +377,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
+  candidateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   actions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  publishedBadge: {
+    backgroundColor: '#dcfce7',
+  },
+  unpublishedBadge: {
+    backgroundColor: '#fef3c7',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  publishedText: {
+    color: '#166534',
+  },
+  unpublishedText: {
+    color: '#92400e',
+  },
+  publishButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  unpublishButton: {
+    backgroundColor: '#f59e0b',
+  },
+  publishButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  unpublishButtonText: {
+    color: '#fff',
   },
   
   // Buttons
@@ -479,7 +571,6 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#4b5563',
-    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#3b82f6',

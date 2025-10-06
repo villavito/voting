@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to all collections for this demo app
+    // In a production app, you would want more restrictive rules
+
+    // Users collection - for registration and admin approval
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Candidates collection - for managing election candidates
+    match /candidates/{candidateId} {
+      allow read, write: if true;
+    }
+
+    // Votes collection - for recording votes
+    match /votes/{voteId} {
+      allow read, write: if true;
+    }
+
+    // Elections collection (if you add elections management)
+    match /elections/{electionId} {
+      allow read, write: if true;
+    }
+
+    // Settings collection (for app configuration)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+  }
+}
