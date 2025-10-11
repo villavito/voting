@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View, Modal, TouchableOpacity, ScrollView } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View, Modal, ScrollView } from "react-native";
 import { addCandidate, listCandidates, updateCandidate, deleteCandidate } from './services/firebaseService';
 
 export default function ManageCandidatesScreen() {
@@ -8,7 +8,22 @@ export default function ManageCandidatesScreen() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showPositionDropdown, setShowPositionDropdown] = useState(false);
-  const candidates = useMemo(() => listCandidates(true), [refreshKey]);
+  const [showCourseDropdown, setShowCourseDropdown] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [candidates, setCandidates] = useState<any[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const data = await listCandidates(true);
+        setCandidates(data);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [refreshKey]);
 
   // Position options
   const positionOptions = [
@@ -18,12 +33,26 @@ export default function ManageCandidatesScreen() {
     "Treasurer",
     "Auditor",
     "P.I.O",
-    "Sgt. at Arms"
+    "Sgt. at Arms",
+    "Class Representative"
+  ];
+
+  // Course options
+  const courseOptions = [
+    "BSIT",
+    "CSS"
   ];
 
   // Form state
   const [name, setName] = useState("");
   const [position, setPosition] = useState("");
+  const [party, setParty] = useState("");
+  const [course, setCourse] = useState("");
+
+  // Search and filters
+  const [query, setQuery] = useState("");
+  const [positionFilter, setPositionFilter] = useState<string | null>(null);
+  const [publishedFilter, setPublishedFilter] = useState<null | boolean>(null);
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
@@ -32,7 +61,13 @@ export default function ManageCandidatesScreen() {
       Alert.alert("Missing fields", "Name and Position are required.");
       return;
     }
-    addCandidate(name.trim(), position.trim());
+    addCandidate({
+      name: name.trim(),
+      position: position.trim(),
+      party: party.trim() || undefined,
+      course: course.trim() || undefined,
+      published: true,
+    });
     resetForm();
     refresh();
   };
@@ -45,6 +80,8 @@ export default function ManageCandidatesScreen() {
     setEditingId(candidate.id);
     setName(candidate.name);
     setPosition(candidate.position);
+    setParty(candidate.party || "");
+    setCourse(candidate.course || "");
     setShowAddForm(true);
   };
 
@@ -53,7 +90,12 @@ export default function ManageCandidatesScreen() {
       Alert.alert("Missing fields", "Name and Position are required.");
       return;
     }
-    updateCandidate(editingId, { name: name.trim(), position: position.trim() });
+    updateCandidate(editingId, {
+      name: name.trim(),
+      position: position.trim(),
+      party: party.trim() || undefined,
+      course: course.trim() || undefined,
+    });
     resetForm();
     refresh();
   };
@@ -79,6 +121,54 @@ export default function ManageCandidatesScreen() {
     );
   };
 
+  const onPublishAll = () => {
+    const draftCandidates = candidates.filter(c => !c.published);
+    if (draftCandidates.length === 0) {
+      Alert.alert("No Drafts", "All candidates are already published.");
+      return;
+    }
+    Alert.alert(
+      "Publish All Candidates",
+      `Are you sure you want to publish all ${draftCandidates.length} draft candidate${draftCandidates.length !== 1 ? 's' : ''}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Publish All",
+          onPress: () => {
+            draftCandidates.forEach(candidate => {
+              updateCandidate(candidate.id, { published: true });
+            });
+            refresh();
+          },
+        },
+      ]
+    );
+  };
+
+  const onUnpublishAll = () => {
+    const publishedCandidates = candidates.filter(c => c.published);
+    if (publishedCandidates.length === 0) {
+      Alert.alert("No Published Candidates", "All candidates are already unpublished.");
+      return;
+    }
+    Alert.alert(
+      "Unpublish All Candidates",
+      `Are you sure you want to unpublish all ${publishedCandidates.length} published candidate${publishedCandidates.length !== 1 ? 's' : ''}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unpublish All",
+          onPress: () => {
+            publishedCandidates.forEach(candidate => {
+              updateCandidate(candidate.id, { published: false });
+            });
+            refresh();
+          },
+        },
+      ]
+    );
+  };
+
   const onDelete = (id: string, name: string) => {
     Alert.alert("Delete Candidate", `Are you sure you want to delete ${name}?`, [
       { text: "Cancel", style: "cancel" },
@@ -86,7 +176,7 @@ export default function ManageCandidatesScreen() {
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          removeCandidate(id);
+          deleteCandidate(id);
           refresh();
           resetForm();
         },
@@ -97,9 +187,12 @@ export default function ManageCandidatesScreen() {
   const resetForm = () => {
     setName("");
     setPosition("");
+    setParty("");
+    setCourse("");
     setEditingId(null);
     setShowAddForm(false);
     setShowPositionDropdown(false);
+    setShowCourseDropdown(false);
   };
 
   const handleSubmit = () => {
@@ -110,17 +203,31 @@ export default function ManageCandidatesScreen() {
     }
   };
 
+  const filteredCandidates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return candidates.filter((c) => {
+      const matchesQuery = !q || c.name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.party?.toLowerCase?.().includes(q);
+      const matchesPosition = !positionFilter || c.position === positionFilter;
+      const matchesPublished = publishedFilter === null || !!c.published === publishedFilter;
+      return matchesQuery && matchesPosition && matchesPublished;
+    });
+  }, [candidates, query, positionFilter, publishedFilter]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={styles.backText}>Back</Text>
         </Pressable>
         <Text style={styles.title}>Manage Candidates</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      {candidates.length === 0 ? (
+      {loading ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptySubtext}>Loading...</Text>
+        </View>
+      ) : candidates.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>📋</Text>
           <Text style={styles.emptyText}>No Candidates Registered Yet</Text>
@@ -134,59 +241,94 @@ export default function ManageCandidatesScreen() {
         </View>
       ) : (
         <View style={styles.contentContainer}>
+          <View style={{ gap: 10, marginBottom: 10 }}>
+            <TextInput
+              placeholder="Search by name, position, party"
+              value={query}
+              onChangeText={setQuery}
+              style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 10 }}
+            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <Pressable onPress={() => setPublishedFilter(null)} style={[styles.chip, publishedFilter === null && styles.chipActive]}>
+                <Text style={[styles.chipText, publishedFilter === null && styles.chipTextActive]}>All</Text>
+              </Pressable>
+              <Pressable onPress={() => setPublishedFilter(true)} style={[styles.chip, publishedFilter === true && styles.chipActive]}>
+                <Text style={[styles.chipText, publishedFilter === true && styles.chipTextActive]}>Published</Text>
+              </Pressable>
+              <Pressable onPress={() => setPublishedFilter(false)} style={[styles.chip, publishedFilter === false && styles.chipActive]}>
+                <Text style={[styles.chipText, publishedFilter === false && styles.chipTextActive]}>Draft</Text>
+              </Pressable>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              <Pressable onPress={() => setPositionFilter(null)} style={[styles.chip, !positionFilter && styles.chipActive]}>
+                <Text style={[styles.chipText, !positionFilter && styles.chipTextActive]}>All Positions</Text>
+              </Pressable>
+              {positionOptions.map((pos) => (
+                <Pressable key={pos} onPress={() => setPositionFilter(pos)} style={[styles.chip, positionFilter === pos && styles.chipActive]}>
+                  <Text style={[styles.chipText, positionFilter === pos && styles.chipTextActive]}>{pos}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>
               {candidates.length} Candidate{candidates.length !== 1 ? 's' : ''}
             </Text>
-            <Pressable 
-              onPress={() => setShowAddForm(true)}
-              style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
-            >
-              <Text style={styles.addButtonText}>+ Add Candidate</Text>
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable 
+                onPress={() => setShowAddForm(true)}
+                style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
+              >
+                <Text style={styles.addButtonText}>+ Add Candidate</Text>
+              </Pressable>
+              <Pressable 
+                onPress={onPublishAll}
+                style={({ pressed }) => [styles.publishAllButton, pressed && styles.buttonPressed]}
+              >
+                <Text style={styles.publishAllButtonText}>Publish All</Text>
+              </Pressable>
+              <Pressable 
+                onPress={onUnpublishAll}
+                style={({ pressed }) => [styles.unpublishAllButton, pressed && styles.buttonPressed]}
+              >
+                <Text style={styles.unpublishAllButtonText}>Unpublish All</Text>
+              </Pressable>
+            </View>
           </View>
 
           <FlatList
-            data={candidates}
+            data={filteredCandidates}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <View style={styles.candidateCard}>
-                <View style={styles.candidateInfo}>
-                  <View style={styles.candidateHeader}>
-                    <Text style={styles.candidateName}>{item.name}</Text>
-                    <View style={[styles.statusBadge, item.published ? styles.publishedBadge : styles.unpublishedBadge]}>
-                      <Text style={[styles.statusText, item.published ? styles.publishedText : styles.unpublishedText]}>
-                        {item.published ? "Published" : "Draft"}
-                      </Text>
+              <View>
+                <View style={styles.candidateCard}>
+                  <View style={styles.candidateInfo}>
+                    <View style={styles.candidateHeader}>
+                      <Text style={styles.candidateName}>{item.name}</Text>
+                      <View style={[styles.statusBadge, item.published ? styles.publishedBadge : styles.unpublishedBadge]}>
+                        <Text style={[styles.statusText, item.published ? styles.publishedText : styles.unpublishedText]}>
+                          {item.published ? "Published" : "Draft"}
+                        </Text>
+                      </View>
                     </View>
+                    <Text style={styles.candidatePosition}>{item.position}</Text>
+                    {!!item.party && <Text style={styles.candidatePosition}>Party: {item.party}</Text>}
+                    {!!item.course && <Text style={styles.candidatePosition}>Course: {item.course}</Text>}
                   </View>
-                  <Text style={styles.candidatePosition}>{item.position}</Text>
-                </View>
-                <View style={styles.actions}>
-                  <Pressable
-                    onPress={() => onEdit(item)}
-                    style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={styles.editButtonText}>Edit</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => onDelete(item.id, item.name)}
-                    style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={styles.deleteButtonText}>Delete</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => onPublish(item.id, item.name, item.published)}
-                    style={({ pressed }) => [
-                      styles.publishButton,
-                      pressed && styles.buttonPressed,
-                      item.published && styles.unpublishButton
-                    ]}
-                  >
-                    <Text style={[styles.publishButtonText, item.published && styles.unpublishButtonText]}>
-                      {item.published ? "Unpublish" : "Publish"}
-                    </Text>
-                  </Pressable>
+                  <View style={styles.actions}>
+                    <Pressable
+                      onPress={() => onEdit(item)}
+                      style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onDelete(item.id, item.name)}
+                      style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={styles.deleteButtonText}>Delete</Text>
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             )}
@@ -247,6 +389,50 @@ export default function ManageCandidatesScreen() {
                         }}
                       >
                         <Text style={styles.dropdownItemText}>{pos}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Party (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter party"
+                value={party}
+                onChangeText={setParty}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Course (optional)</Text>
+              <Pressable
+                style={styles.dropdownButton}
+                onPress={() => setShowCourseDropdown(!showCourseDropdown)}
+              >
+                <Text style={[styles.dropdownButtonText, !course && { color: '#9ca3af' }]}>
+                  {course || 'Select a course'}
+                </Text>
+              </Pressable>
+              
+              {showCourseDropdown && (
+                <View style={styles.dropdown}>
+                  <ScrollView style={styles.dropdownScrollView}>
+                    {courseOptions.map((courseOption) => (
+                      <Pressable
+                        key={courseOption}
+                        style={({ pressed }) => [
+                          styles.dropdownItem,
+                          pressed && styles.dropdownItemPressed
+                        ]}
+                        onPress={() => {
+                          setCourse(courseOption);
+                          setShowCourseDropdown(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>{courseOption}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -335,10 +521,15 @@ const styles = StyleSheet.create({
     padding: 16 
   },
   listHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+    flexDirection: 'column',
+    gap: 12,
+    marginBottom: 16,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
     alignItems: 'center',
-    marginBottom: 16 
+    justifyContent: 'flex-start',
   },
   sectionTitle: { 
     fontSize: 18, 
@@ -353,11 +544,9 @@ const styles = StyleSheet.create({
   candidateCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: 25,
+    marginBottom: 16,
+    flexDirection: 'column',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -385,7 +574,14 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 12,
+  },
+  publishContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -412,10 +608,9 @@ const styles = StyleSheet.create({
   },
   publishButton: {
     backgroundColor: '#10b981',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 6,
-    marginRight: 8,
   },
   unpublishButton: {
     backgroundColor: '#f59e0b',
@@ -432,20 +627,44 @@ const styles = StyleSheet.create({
   // Buttons
   addButton: {
     backgroundColor: '#3b82f6',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
   addButtonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 13,
+  },
+  publishAllButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  publishAllButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  unpublishAllButton: {
+    backgroundColor: '#f59e0b',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  unpublishAllButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   editButton: {
     backgroundColor: '#f59e0b',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 6,
   },
   editButtonText: {
@@ -455,8 +674,8 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     backgroundColor: '#ef4444',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 6,
   },
   deleteButtonText: {
@@ -581,5 +800,25 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  chipActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  chipText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  chipTextActive: {
+    color: '#fff',
   },
 });

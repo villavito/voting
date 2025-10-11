@@ -11,28 +11,64 @@ import {
   Modal,
   TextInput
 } from "react-native";
-import { listCandidates } from './services/firebaseService';
+import { listCandidates, hasUserVoted } from './services/firebaseService';
+import { auth } from "../firebase";
 import { submitVote, getUserVote } from "./services/votingService";
+import { getUserData } from "./services/authService";
 
 export default function VotingScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [selectionByPosition, setSelectionByPosition] = useState<Record<string, any>>({});
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [voterId, setVoterId] = useState("");
   const [hasVoted, setHasVoted] = useState(false);
+  const [userCourse, setUserCourse] = useState<string>("");
 
   // Load candidates on component mount and refresh
   useEffect(() => {
-    loadCandidates();
-  }, [refreshKey]);
+    if (userCourse) {
+      loadCandidates();
+    }
+  }, [refreshKey, userCourse]);
+
+  // Attach auth user and approval guard
+  useEffect(() => {
+    const loadUserData = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        setVoterId(user.uid);
+        try {
+          const userData = await getUserData(user.uid);
+          if (userData && userData.course) {
+            setUserCourse(userData.course);
+          }
+        } catch (error) {
+          console.error('Error loading user data:', error);
+        }
+      }
+    };
+    loadUserData();
+  }, []);
 
   const loadCandidates = async () => {
     try {
       setLoading(true);
       const candidatesData = await listCandidates(false);
-      setCandidates(candidatesData);
+      
+      // Filter candidates based on user course for Class Representative position
+      const filteredCandidates = candidatesData.filter((candidate: any) => {
+        // If candidate is Class Representative, only show if course matches user's course
+        if (candidate.position === "Class Representative" && candidate.course) {
+          return candidate.course === userCourse;
+        }
+        // Show all other positions
+        return true;
+      });
+      
+      setCandidates(filteredCandidates);
     } catch (error) {
       console.error('Error loading candidates:', error);
       Alert.alert('Error', 'Failed to load candidates');
@@ -43,13 +79,30 @@ export default function VotingScreen() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  const handleVotePress = (candidate: any) => {
+  const handleVotePress = async (candidate: any) => {
     if (hasVoted) {
       Alert.alert("Already Voted", "You have already cast your vote for this election.");
       return;
     }
+    if (!voterId.trim()) {
+      Alert.alert("Not signed in", "Please sign in to vote.");
+      return;
+    }
+    try {
+      const voted = await hasUserVoted(voterId.trim());
+      if (voted) {
+        setHasVoted(true);
+        Alert.alert("Already Voted", "You have already cast your vote for this election.");
+        return;
+      }
+    } catch {}
+    // Toggle selection per position
+    setSelectionByPosition((prev) => {
+      const next = { ...prev };
+      next[candidate.position] = candidate;
+      return next;
+    });
     setSelectedCandidate(candidate);
-    setShowVoteModal(true);
   };
 
   const handleVoteSubmission = async () => {
@@ -63,7 +116,7 @@ export default function VotingScreen() {
       return;
     }
 
-    const success = await submitVote(selectedCandidate.id, voterId.trim());
+    const success = await submitVote(selectedCandidate.id, voterId.trim(), selectedCandidate.position);
 
     if (success) {
       setHasVoted(true);
@@ -106,6 +159,9 @@ export default function VotingScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <Pressable onPress={() => router.push("/home")} style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}>
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
         <Text style={styles.title}>🗳️ Cast Your Vote</Text>
         <Pressable
           onPress={() => router.push("/results")}
@@ -132,9 +188,7 @@ export default function VotingScreen() {
         <>
           <View style={styles.instructionsContainer}>
             <Text style={styles.instructionsTitle}>How to Vote:</Text>
-            <Text style={styles.instructionsText}>
-              1. Enter your voter ID or email
-            </Text>
+            <Text style={styles.instructionsText}>1. Confirm your account is approved</Text>
             <Text style={styles.instructionsText}>
               2. Select your preferred candidate
             </Text>
@@ -146,19 +200,9 @@ export default function VotingScreen() {
             </Text>
           </View>
 
-          <View style={styles.voterIdContainer}>
-            <Text style={styles.voterIdLabel}>Voter ID / Email:</Text>
-            <TextInput
-              style={styles.voterIdInput}
-              placeholder="Enter your voter ID or email"
-              value={voterId}
-              onChangeText={setVoterId}
-              onBlur={checkVotingStatus}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
+          {/* voterId auto-filled from auth when signed in */}
 
+          {/* Group by position */}
           <FlatList
             data={candidates}
             keyExtractor={(item) => item.id}
@@ -168,7 +212,8 @@ export default function VotingScreen() {
                 style={({ pressed }) => [
                   styles.candidateCard,
                   pressed && styles.cardPressed,
-                  hasVoted && styles.votedCard
+                  hasVoted && styles.votedCard,
+                  selectionByPosition[item.position]?.id === item.id && styles.selectedCard
                 ]}
                 disabled={hasVoted}
               >
@@ -194,6 +239,22 @@ export default function VotingScreen() {
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
           />
+          {/* Submit Button */}
+          <View style={styles.submitBar}>
+            <Pressable
+              onPress={() => setShowVoteModal(true)}
+              disabled={Object.keys(selectionByPosition).length === 0 || hasVoted || !voterId}
+              style={({ pressed }) => [
+                styles.submitVoteButton,
+                (Object.keys(selectionByPosition).length === 0 || hasVoted || !voterId) && styles.submitVoteButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.submitButtonText}>
+                {hasVoted ? 'Already Voted' : Object.keys(selectionByPosition).length > 0 ? `Submit ${Object.keys(selectionByPosition).length} vote(s)` : 'Select candidates to submit'}
+              </Text>
+            </Pressable>
+          </View>
         </>
       )}
 
@@ -208,38 +269,24 @@ export default function VotingScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Confirm Your Vote</Text>
 
-            {selectedCandidate && (
-              <View style={styles.selectedCandidateContainer}>
+            {Object.entries(selectionByPosition).map(([pos, cand]: any) => (
+              <View key={pos} style={styles.selectedCandidateContainer}>
                 <Image
                   source={{
                     uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      selectedCandidate.name
+                      cand.name
                     )}&background=1e90ff&color=fff&size=60`
                   }}
                   style={styles.modalAvatar}
                 />
                 <View style={styles.selectedCandidateInfo}>
-                  <Text style={styles.selectedCandidateName}>
-                    {selectedCandidate.name}
-                  </Text>
-                  <Text style={styles.selectedCandidatePosition}>
-                    {selectedCandidate.position}
-                  </Text>
+                  <Text style={styles.selectedCandidateName}>{cand.name}</Text>
+                  <Text style={styles.selectedCandidatePosition}>{pos}</Text>
                 </View>
               </View>
-            )}
+            ))}
 
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Voter ID / Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your voter ID or email"
-                value={voterId}
-                onChangeText={setVoterId}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+            {/* voterId taken from signed-in user; no manual entry needed */}
 
             <View style={styles.modalButtons}>
               <Pressable
@@ -252,10 +299,21 @@ export default function VotingScreen() {
                 style={[
                   styles.modalButton,
                   styles.submitButton,
-                  (!voterId || !selectedCandidate) && styles.submitButtonDisabled
+                  (!voterId || Object.keys(selectionByPosition).length === 0) && styles.submitButtonDisabled
                 ]}
-                onPress={handleVoteSubmission}
-                disabled={!voterId || !selectedCandidate}
+                onPress={async () => {
+                  // Submit one vote per position
+                  for (const [pos, cand] of Object.entries(selectionByPosition) as any) {
+                    const ok = await submitVote(cand.id, voterId.trim(), pos);
+                    if (!ok) {
+                      Alert.alert('Vote Skipped', `Already voted for ${pos}`);
+                    }
+                  }
+                  setHasVoted(true);
+                  setShowVoteModal(false);
+                  Alert.alert('Vote Submitted', 'Your votes have been recorded.');
+                }}
+                disabled={!voterId || Object.keys(selectionByPosition).length === 0}
               >
                 <Text style={styles.submitButtonText}>Submit Vote</Text>
               </Pressable>
@@ -282,7 +340,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e2e8f0",
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "800",
     color: "#1f2937",
   },
@@ -292,6 +350,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
   },
+  backButton: {
+    backgroundColor: "#6b7280",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  backText: { color: "#fff", fontWeight: "600" },
   resultsButtonText: {
     color: "#fff",
     fontWeight: "600",
@@ -391,6 +456,10 @@ const styles = StyleSheet.create({
   votedCard: {
     opacity: 0.6,
     backgroundColor: "#f3f4f6",
+  },
+  selectedCard: {
+    borderWidth: 2,
+    borderColor: '#3b82f6',
   },
   avatar: {
     width: 60,
@@ -521,5 +590,20 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  submitBar: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  submitVoteButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  submitVoteButtonDisabled: {
+    opacity: 0.6,
   },
 });

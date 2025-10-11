@@ -50,22 +50,18 @@ export default function RegisterScreen() {
         course,
         studentId,
         approved: false, // New users need admin approval
-        isAdmin: false, // Only set to true for admin users
-        createdAt: new Date()
+        isAdmin: false // Only set to true for admin users
       });
 
       Alert.alert(
         "Registration Successful",
-        "Your account has been created and is pending admin approval. You will be notified once approved.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              router.replace("/(auth)/login");
-            },
-          },
-        ]
+        "Your account has been created and is pending admin approval. You will be notified once approved."
       );
+      
+      // Auto navigate to login page after 1 second
+      setTimeout(() => {
+        router.replace("/(auth)/login");
+      }, 1000);
     } catch (error: any) {
       console.error("Registration error:", error);
       let errorMessage = "Failed to register. Please try again.";

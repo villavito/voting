@@ -1,11 +1,29 @@
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { approveUser, disapproveUser, getPendingUsers } from "./(auth)/login";
+import { approveUser, disapproveUser, getPendingUsers } from "./services/firebaseService";
 
 export default function ApproveUsersScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const pendingUsers = useMemo(() => getPendingUsers(), [refreshKey]);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const users = await getPendingUsers();
+      setPendingUsers(users);
+    } catch (error) {
+      console.error('Error loading pending users:', error);
+      Alert.alert('Error', 'Failed to load pending users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, [refreshKey]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
@@ -45,7 +63,11 @@ export default function ApproveUsersScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {pendingUsers.length === 0 ? (
+      {loading ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptySubtext}>Loading...</Text>
+        </View>
+      ) : pendingUsers.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>✅</Text>
           <Text style={styles.emptyText}>All caught up!</Text>

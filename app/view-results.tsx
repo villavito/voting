@@ -1,11 +1,32 @@
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable } from "react-native";
-import { listCandidates, getPendingUsers } from "./(auth)/login";
+import { listCandidates, getPendingUsers } from "./services/firebaseService";
 
 export default function ViewResultsScreen() {
-  const candidates = listCandidates();
-  const pendingUsers = getPendingUsers();
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [cands, users] = await Promise.all([
+        listCandidates(false),
+        getPendingUsers(),
+      ]);
+      setCandidates(cands);
+      setPendingUsers(users);
+    } catch (error) {
+      console.error('Error loading results data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
   
   // In a real app, you would fetch actual voting results here
   const votingResults = [
@@ -31,11 +52,11 @@ export default function ViewResultsScreen() {
       {/* Stats Overview */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{candidates.length}</Text>
+          <Text style={styles.statValue}>{loading ? '-' : candidates.length}</Text>
           <Text style={styles.statLabel}>Total Candidates</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{pendingUsers.length}</Text>
+          <Text style={styles.statValue}>{loading ? '-' : pendingUsers.length}</Text>
           <Text style={styles.statLabel}>Pending Approvals</Text>
         </View>
         <View style={styles.statCard}>

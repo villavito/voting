@@ -18,16 +18,17 @@ const voterRecords: Record<string, string> = {}; // voterId -> candidateId
  * @param voterId - ID or email of the voter
  * @returns boolean indicating if the vote was successful
  */
-export async function submitVote(candidateId: string, voterId: string): Promise<boolean> {
+export async function submitVote(candidateId: string, voterId: string, position: string): Promise<boolean> {
   // Check if voter has already voted (local cache)
-  if (voterRecords[voterId]) {
-    console.warn(`Voter ${voterId} has already voted for candidate ${voterRecords[voterId]}`);
+  const existing = voterRecords[voterId];
+  if (existing) {
+    console.warn(`Voter ${voterId} has already voted (local cache)`);
     return false;
   }
 
   // Submit vote to Firebase
   try {
-    await submitVoteToFirebase(candidateId, voterId);
+    await submitVoteToFirebase(candidateId, voterId, position);
     voterRecords[voterId] = candidateId;
     console.log(`Vote recorded: ${voterId} voted for ${candidateId}`);
     return true;

@@ -1,53 +1,21 @@
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View, ScrollView } from "react-native";
-import { addCandidate, approveUser, getPendingUsers, listCandidates, removeCandidate } from "./(auth)/login";
+import React from "react";
+import { Image, Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
+import { signOut } from 'firebase/auth';
+import { auth } from "../firebase";
 
 export default function AdminScreen() {
   const params = useLocalSearchParams<{ username?: string }>();
   const username = (params.username || "admin") as string;
 
-  // Candidates state
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showPositionDropdown, setShowPositionDropdown] = useState(false);
-  const candidates = useMemo(() => listCandidates(), [refreshKey]);
-
-  // Position options
-  const positionOptions = [
-    "President",
-    "Vice President", 
-    "Secretary",
-    "Treasurer",
-    "Auditor",
-    "P.I.O",
-    "Sgt. at Arms"
-  ];
-
-  // Add form state
-  const [name, setName] = useState("");
-  const [position, setPosition] = useState("");
-
-  const refreshCandidates = () => setRefreshKey((k) => k + 1);
-
-  const onAddCandidate = () => {
-    if (!name.trim() || !position.trim()) {
-      Alert.alert("Missing fields", "Name and Position are required.");
-      return;
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      // no-op: navigate regardless
+    } finally {
+      router.replace("/login");
     }
-    addCandidate(name.trim(), position.trim());
-    setName("");
-    setPosition("");
-    setShowAddForm(false);
-    setShowPositionDropdown(false);
-    refreshCandidates();
-  };
-
-  const cancelAdd = () => {
-    setName("");
-    setPosition("");
-    setShowPositionDropdown(false);
-    setShowAddForm(false);
   };
 
   return (
@@ -67,7 +35,7 @@ export default function AdminScreen() {
             <Text style={styles.meta}>Username: {username}</Text>
             <Text style={styles.meta}>Role: System Administrator</Text>
           </View>
-          <Pressable onPress={() => router.replace("/login")} style={({ pressed }) => [styles.logoutButton, pressed && styles.buttonPressed]}>
+          <Pressable onPress={handleLogout} style={({ pressed }) => [styles.logoutButton, pressed && styles.buttonPressed]}>
             <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
         </View>

@@ -92,7 +92,13 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome</Text>
+      <Pressable 
+        onPress={() => router.push("/")} 
+        style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+      >
+        <Text style={styles.backText}>Back</Text>
+      </Pressable>
+      <Text style={styles.title}>Sign-up</Text>
       <TextInput
         placeholder="Email"
         autoCapitalize="none"
@@ -145,7 +151,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    justifyContent: 'center',
+    paddingTop: 60,
+    justifyContent: 'flex-start',
     backgroundColor: '#fff',
   },
   title: {
@@ -211,5 +218,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#6b7280',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 40,
+  },
+  backText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

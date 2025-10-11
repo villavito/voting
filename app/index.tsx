@@ -1,20 +1,12 @@
 import { Link, router } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 export default function LandingScreen() {
-  useEffect(() => {
-    // Auto-redirect to login after 3 seconds if user doesn't interact
-    const timer = setTimeout(() => {
-      router.replace("/(auth)/login");
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <View style={styles.container}>
       <View style={styles.content}>
+        <Text style={styles.welcome}>Welcome</Text>
         <Text style={styles.title}>🗳️ Voting App</Text>
         <Text style={styles.subtitle}>Secure Online Voting System</Text>
 
@@ -47,6 +39,12 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: "center",
+  },
+  welcome: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
