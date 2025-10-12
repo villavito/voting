@@ -50,6 +50,11 @@ export default function AdminScreen() {
           <Text style={styles.manageCandidatesText}>📋 Manage Candidates</Text>
         </Pressable>
 
+        {/* Manage Voting Cycles Button */}
+        <Pressable onPress={() => router.push({ pathname: "/manage-voting-cycles" })} style={({ pressed }) => [styles.votingCyclesButton, pressed && styles.buttonPressed]}>
+          <Text style={styles.votingCyclesText}>🗳️ Manage Voting Cycles</Text>
+        </Pressable>
+
         {/* View Results Button */}
         <Pressable onPress={() => router.push({ pathname: "/view-results" })} style={({ pressed }) => [styles.viewResultsButton, pressed && styles.buttonPressed]}>
           <Text style={styles.viewResultsText}>📊 View Election Results</Text>
@@ -174,6 +179,23 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   viewResultsText: { 
+    color: "#fff", 
+    fontWeight: "700", 
+    fontSize: 18 
+  },
+  votingCyclesButton: { 
+    backgroundColor: "#06b6d4", 
+    padding: 16, 
+    borderRadius: 10, 
+    marginTop: 8, 
+    alignItems: "center",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  votingCyclesText: { 
     color: "#fff", 
     fontWeight: "700", 
     fontSize: 18 

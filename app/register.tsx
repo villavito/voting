@@ -82,6 +82,12 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
+      <Pressable 
+        onPress={() => router.back()} 
+        style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+      >
+        <Text style={styles.backButtonText}>Back</Text>
+      </Pressable>
       <Text style={styles.title}>Create Account</Text>
       <TextInput placeholder="Username" autoCapitalize="words" value={displayName} onChangeText={setDisplayName} style={styles.input} />
       <TextInput placeholder="email" autoCapitalize="none" keyboardType="email-address" value={username} onChangeText={setUsername} style={styles.input} />
@@ -140,10 +146,21 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, justifyContent: "center", gap: 12 },
+  backButton: {
+    alignSelf: "flex-start",
+    padding: 8,
+    marginBottom: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: "#3b82f6",
+    fontWeight: "600",
+  },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 8, textAlign: "center" },
   label: { fontSize: 12, color: "#666", fontWeight: "600", marginTop: 6 },
   input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12 },
   dropdownButton: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12 },
+  dropdownText: { fontSize: 16 },
   placeholderText: { color: "#999" },
   dropdownArrow: { fontSize: 12, color: "#666" },
   dropdownList: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, backgroundColor: "#fff", marginTop: 2 },

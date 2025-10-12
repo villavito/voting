@@ -40,11 +40,12 @@ export async function submitVote(candidateId: string, voterId: string, position:
 
 /**
  * Get vote counts for all candidates
+ * @param cycleId - Optional cycle ID to filter votes
  * @returns Object mapping candidateId to vote count
  */
-export async function getVoteCounts(): Promise<Record<string, number>> {
+export async function getVoteCounts(cycleId?: string): Promise<Record<string, number>> {
   try {
-    return await getVoteCountsFromFirebase();
+    return await getVoteCountsFromFirebase(cycleId);
   } catch (error) {
     console.error('Error getting vote counts:', error);
     return {};
@@ -62,9 +63,10 @@ export function getUserVote(voterId: string): string | undefined {
 
 /**
  * Get total number of votes cast
+ * @param cycleId - Optional cycle ID to filter votes
  */
-export async function getTotalVotes(): Promise<number> {
-  const counts = await getVoteCounts();
+export async function getTotalVotes(cycleId?: string): Promise<number> {
+  const counts = await getVoteCounts(cycleId);
   return Object.values(counts).reduce((sum, count) => sum + count, 0);
 }
 

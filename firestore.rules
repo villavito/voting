@@ -28,5 +28,10 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read, write: if true;
     }
+
+    // Voting Cycles collection - for managing voting periods
+    match /votingCycles/{cycleId} {
+      allow read, write: if true;
+    }
   }
 }

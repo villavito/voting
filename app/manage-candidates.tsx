@@ -100,74 +100,6 @@ export default function ManageCandidatesScreen() {
     refresh();
   };
 
-  const onPublish = (id: string, name: string, isPublished: boolean) => {
-    if (!id || !name.trim()) {
-      Alert.alert("Missing fields", "ID and Name are required.");
-      return;
-    }
-    Alert.alert(
-      isPublished ? "Unpublish Candidate" : "Publish Candidate",
-      `Are you sure you want to ${isPublished ? "unpublish" : "publish"} ${name}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: isPublished ? "Unpublish" : "Publish",
-          onPress: () => {
-            updateCandidate(id, { published: !isPublished });
-            refresh();
-          },
-        },
-      ]
-    );
-  };
-
-  const onPublishAll = () => {
-    const draftCandidates = candidates.filter(c => !c.published);
-    if (draftCandidates.length === 0) {
-      Alert.alert("No Drafts", "All candidates are already published.");
-      return;
-    }
-    Alert.alert(
-      "Publish All Candidates",
-      `Are you sure you want to publish all ${draftCandidates.length} draft candidate${draftCandidates.length !== 1 ? 's' : ''}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Publish All",
-          onPress: () => {
-            draftCandidates.forEach(candidate => {
-              updateCandidate(candidate.id, { published: true });
-            });
-            refresh();
-          },
-        },
-      ]
-    );
-  };
-
-  const onUnpublishAll = () => {
-    const publishedCandidates = candidates.filter(c => c.published);
-    if (publishedCandidates.length === 0) {
-      Alert.alert("No Published Candidates", "All candidates are already unpublished.");
-      return;
-    }
-    Alert.alert(
-      "Unpublish All Candidates",
-      `Are you sure you want to unpublish all ${publishedCandidates.length} published candidate${publishedCandidates.length !== 1 ? 's' : ''}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Unpublish All",
-          onPress: () => {
-            publishedCandidates.forEach(candidate => {
-              updateCandidate(candidate.id, { published: false });
-            });
-            refresh();
-          },
-        },
-      ]
-    );
-  };
 
   const onDelete = (id: string, name: string) => {
     Alert.alert("Delete Candidate", `Are you sure you want to delete ${name}?`, [
@@ -212,6 +144,35 @@ export default function ManageCandidatesScreen() {
       return matchesQuery && matchesPosition && matchesPublished;
     });
   }, [candidates, query, positionFilter, publishedFilter]);
+
+  // Group candidates by position
+  const groupedCandidates = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+    filteredCandidates.forEach((candidate) => {
+      if (!grouped[candidate.position]) {
+        grouped[candidate.position] = [];
+      }
+      grouped[candidate.position].push(candidate);
+    });
+    
+    // Sort positions according to the hierarchy defined in positionOptions
+    const sortedPositions = Object.keys(grouped).sort((a, b) => {
+      const indexA = positionOptions.indexOf(a);
+      const indexB = positionOptions.indexOf(b);
+      
+      // If position is not in positionOptions, put it at the end
+      if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      
+      return indexA - indexB;
+    });
+    
+    return sortedPositions.map(position => ({ 
+      position, 
+      candidates: grouped[position] 
+    }));
+  }, [filteredCandidates]);
 
   return (
     <View style={styles.container}>
@@ -274,61 +235,62 @@ export default function ManageCandidatesScreen() {
             <Text style={styles.sectionTitle}>
               {candidates.length} Candidate{candidates.length !== 1 ? 's' : ''}
             </Text>
-            <View style={styles.headerActions}>
-              <Pressable 
-                onPress={() => setShowAddForm(true)}
-                style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.addButtonText}>+ Add Candidate</Text>
-              </Pressable>
-              <Pressable 
-                onPress={onPublishAll}
-                style={({ pressed }) => [styles.publishAllButton, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.publishAllButtonText}>Publish All</Text>
-              </Pressable>
-              <Pressable 
-                onPress={onUnpublishAll}
-                style={({ pressed }) => [styles.unpublishAllButton, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.unpublishAllButtonText}>Unpublish All</Text>
-              </Pressable>
-            </View>
+            <Pressable 
+              onPress={() => setShowAddForm(true)}
+              style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.addButtonText}>+ Add Candidate</Text>
+            </Pressable>
           </View>
 
           <FlatList
-            data={filteredCandidates}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View>
-                <View style={styles.candidateCard}>
-                  <View style={styles.candidateInfo}>
-                    <View style={styles.candidateHeader}>
-                      <Text style={styles.candidateName}>{item.name}</Text>
-                      <View style={[styles.statusBadge, item.published ? styles.publishedBadge : styles.unpublishedBadge]}>
-                        <Text style={[styles.statusText, item.published ? styles.publishedText : styles.unpublishedText]}>
-                          {item.published ? "Published" : "Draft"}
-                        </Text>
+            data={groupedCandidates}
+            keyExtractor={(item) => item.position}
+            renderItem={({ item: positionGroup }) => (
+              <View style={styles.positionSection}>
+                <Text style={styles.positionTitle}>{positionGroup.position}</Text>
+                <View style={styles.tableContainer}>
+                  {/* Table Header */}
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, styles.colName]}>Name</Text>
+                    <Text style={[styles.tableHeaderText, styles.colDetails]}>Details</Text>
+                    <Text style={[styles.tableHeaderText, styles.colStatus]}>Status</Text>
+                    <Text style={[styles.tableHeaderText, styles.colActions]}>Actions</Text>
+                  </View>
+                  
+                  {/* Table Body */}
+                  {positionGroup.candidates.map((candidate) => (
+                    <View key={candidate.id} style={styles.tableRow}>
+                      <View style={styles.colName}>
+                        <Text style={styles.candidateName}>{candidate.name}</Text>
+                      </View>
+                      <View style={styles.colDetails}>
+                        {!!candidate.party && <Text style={styles.detailText}>Party: {candidate.party}</Text>}
+                        {!!candidate.course && <Text style={styles.detailText}>Course: {candidate.course}</Text>}
+                      </View>
+                      <View style={styles.colStatus}>
+                        <View style={[styles.statusBadge, candidate.published ? styles.publishedBadge : styles.unpublishedBadge]}>
+                          <Text style={[styles.statusText, candidate.published ? styles.publishedText : styles.unpublishedText]}>
+                            {candidate.published ? "Published" : "Draft"}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.colActions}>
+                        <Pressable
+                          onPress={() => onEdit(candidate)}
+                          style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
+                        >
+                          <Text style={styles.editButtonText}>Edit</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => onDelete(candidate.id, candidate.name)}
+                          style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
+                        >
+                          <Text style={styles.deleteButtonText}>Delete</Text>
+                        </Pressable>
                       </View>
                     </View>
-                    <Text style={styles.candidatePosition}>{item.position}</Text>
-                    {!!item.party && <Text style={styles.candidatePosition}>Party: {item.party}</Text>}
-                    {!!item.course && <Text style={styles.candidatePosition}>Course: {item.course}</Text>}
-                  </View>
-                  <View style={styles.actions}>
-                    <Pressable
-                      onPress={() => onEdit(item)}
-                      style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
-                    >
-                      <Text style={styles.editButtonText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => onDelete(item.id, item.name)}
-                      style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
-                    >
-                      <Text style={styles.deleteButtonText}>Delete</Text>
-                    </Pressable>
-                  </View>
+                  ))}
                 </View>
               </View>
             )}
@@ -521,15 +483,10 @@ const styles = StyleSheet.create({
     padding: 16 
   },
   listHeader: { 
-    flexDirection: 'column',
-    gap: 12,
-    marginBottom: 16,
-  },
-  headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    marginBottom: 16,
   },
   sectionTitle: { 
     fontSize: 18, 
@@ -541,54 +498,14 @@ const styles = StyleSheet.create({
   },
   
   // Candidate Card
-  candidateCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 25,
-    marginBottom: 16,
-    flexDirection: 'column',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  candidateInfo: {
-    flex: 1,
-  },
-  candidateName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  candidatePosition: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  candidateHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 12,
-  },
-  publishContainer: {
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-  },
+  // Table styles
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
-    minWidth: 60,
+    minWidth: 70,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   publishedBadge: {
     backgroundColor: '#dcfce7',
@@ -597,8 +514,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef3c7',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+    textAlign: 'center',
   },
   publishedText: {
     color: '#166534',
@@ -637,32 +555,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
-  publishAllButton: {
-    backgroundColor: '#10b981',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  publishAllButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  unpublishAllButton: {
-    backgroundColor: '#f59e0b',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  unpublishAllButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
   editButton: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: '#8b5cf6',
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 6,
@@ -707,6 +601,77 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 24,
     textAlign: 'center',
+  },
+  positionSection: {
+    marginBottom: 24,
+  },
+  positionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1f2937",
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "#3b82f6",
+  },
+  tableContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 3,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#3b82f6",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "#2563eb",
+  },
+  tableHeaderText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  colName: {
+    flex: 2,
+    paddingHorizontal: 4,
+  },
+  colDetails: {
+    flex: 2,
+    paddingHorizontal: 4,
+  },
+  colStatus: {
+    flex: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  colActions: {
+    flex: 2,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    flexWrap: "wrap",
+  },
+  detailText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  candidateName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1f2937',
   },
   formGroup: {
     marginBottom: 20,

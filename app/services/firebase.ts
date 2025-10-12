@@ -1,10 +1,10 @@
-// Firebase configuration
-// Replace these values with your actual Firebase project configuration
+// ✅ Import necessary Firebase modules
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp } from 'firebase/app';
+import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 
-// Your web app's Firebase configuration
+// 🧭 Your Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCdo_39l_Uh_oLQEYzODHRrxlMVLY4pnZc",
   authDomain: "voting-b4aef.firebaseapp.com",
@@ -15,15 +15,23 @@ const firebaseConfig = {
   measurementId: "G-2CP4YDR1FM"
 };
 
-// Initialize Firebase
+// 🧱 Initialize the Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+// 🔐 Initialize Auth with AsyncStorage persistence (only once)
+let auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch (e) {
+  // If already initialized, just get the existing one
+  auth = getAuth(app);
+}
 
-// Initialize Firebase Authentication and get a reference to the service
-// Note: For React Native, AsyncStorage persistence is handled automatically
-// when @react-native-async-storage/async-storage is installed
-export const auth = getAuth(app);
+// ☁️ Initialize Firestore
+const db = getFirestore(app);
 
-export default app;
+// ✅ Export instances so you can use them anywhere in the app
+export { app, auth, db };
+

@@ -22,7 +22,7 @@ export default function LoginScreen() {
             if (userData.isAdmin) {
               router.replace("/admin");
             } else if (userData.approved) {
-              router.replace("/vote");
+              router.replace("/home");
             } else {
               // User is not approved yet
               Alert.alert("Pending Approval", "Your account is awaiting admin approval.");

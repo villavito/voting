@@ -1,7 +1,7 @@
 import { Link, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View, FlatList, Image, RefreshControl, Pressable } from "react-native";
-import { listCandidates } from "./services/firebaseService";
+import { listCandidates, getActiveCycle } from "./services/firebaseService";
 import { getVoteCounts, getTotalVotes } from "./services/votingService";
 
 export default function ResultsScreen() {
@@ -14,10 +14,15 @@ export default function ResultsScreen() {
   const loadResults = async () => {
     try {
       setIsLoading(true);
+      
+      // Get active cycle to fetch votes for current cycle only
+      const activeCycle = await getActiveCycle();
+      const cycleId = activeCycle?.id;
+      
       const [candidatesData, voteCountsData, totalVotesData] = await Promise.all([
         listCandidates(false),
-        getVoteCounts(),
-        getTotalVotes()
+        getVoteCounts(cycleId),
+        getTotalVotes(cycleId)
       ]);
       setCandidates(candidatesData);
       setVoteCounts(voteCountsData);
@@ -39,12 +44,30 @@ export default function ResultsScreen() {
     loadResults();
   };
 
-  // Sort candidates by vote count (descending)
-  const sortedCandidates = [...candidates].sort((a, b) => {
-    const votesA = voteCounts[a.id] || 0;
-    const votesB = voteCounts[b.id] || 0;
-    return votesB - votesA;
-  });
+  // Group candidates by position
+  const groupedCandidates = (() => {
+    const grouped: Record<string, any[]> = {};
+    candidates.forEach((candidate) => {
+      if (!grouped[candidate.position]) {
+        grouped[candidate.position] = [];
+      }
+      grouped[candidate.position].push(candidate);
+    });
+    
+    // Sort candidates within each position by vote count
+    Object.keys(grouped).forEach(position => {
+      grouped[position].sort((a, b) => {
+        const votesA = voteCounts[a.id] || 0;
+        const votesB = voteCounts[b.id] || 0;
+        return votesB - votesA;
+      });
+    });
+    
+    return Object.keys(grouped).map(position => ({ 
+      position, 
+      candidates: grouped[position] 
+    }));
+  })();
 
   const getVotePercentage = (candidateId: string) => {
     if (totalVotes === 0) return "0%";
@@ -72,35 +95,56 @@ export default function ResultsScreen() {
         </View>
       ) : (
         <FlatList
-          data={sortedCandidates}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <View style={styles.candidateCard}>
-              <View style={styles.rankBadge}>
-                <Text style={styles.rankText}>#{index + 1}</Text>
-              </View>
-              <Image
-                source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=1e90ff&color=fff&size=80` }}
-                style={styles.avatar}
-              />
-              <View style={styles.candidateInfo}>
-                <Text style={styles.candidateName}>{item.name}</Text>
-                <Text style={styles.position}>{item.position}</Text>
-                {item.party && <Text style={styles.party}>{item.party}</Text>}
-                <View style={styles.voteBarContainer}>
-                  <View
-                    style={[
-                      styles.voteBar,
-                      {
-                        width: `${Math.max(10, (voteCounts[item.id] || 0) / totalVotes * 100)}%`,
-                        backgroundColor: index === 0 ? '#10B981' : '#3B82F6'
-                      }
-                    ]}
-                  />
-                  <Text style={styles.voteCount}>
-                    {voteCounts[item.id] || 0} votes ({getVotePercentage(item.id)})
-                  </Text>
+          data={groupedCandidates}
+          keyExtractor={(item) => item.position}
+          renderItem={({ item: positionGroup }) => (
+            <View style={styles.positionSection}>
+              <Text style={styles.positionTitle}>{positionGroup.position}</Text>
+              <View style={styles.tableContainer}>
+                {/* Table Header */}
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderText, styles.colRank]}>Rank</Text>
+                  <Text style={[styles.tableHeaderText, styles.colPhoto]}>Photo</Text>
+                  <Text style={[styles.tableHeaderText, styles.colName]}>Name</Text>
+                  <Text style={[styles.tableHeaderText, styles.colVotes]}>Votes</Text>
                 </View>
+                
+                {/* Table Body */}
+                {positionGroup.candidates.map((candidate, index) => (
+                  <View key={candidate.id} style={styles.tableRow}>
+                    <View style={styles.colRank}>
+                      <View style={[styles.rankBadge, index === 0 && styles.rankBadgeWinner]}>
+                        <Text style={styles.rankText}>#{index + 1}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.colPhoto}>
+                      <Image
+                        source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(candidate.name)}&background=1e90ff&color=fff&size=50` }}
+                        style={styles.tableAvatar}
+                      />
+                    </View>
+                    <View style={styles.colName}>
+                      <Text style={styles.candidateName}>{candidate.name}</Text>
+                      {candidate.party && <Text style={styles.party}>{candidate.party}</Text>}
+                    </View>
+                    <View style={styles.colVotes}>
+                      <View style={styles.voteBarContainer}>
+                        <View
+                          style={[
+                            styles.voteBar,
+                            {
+                              width: `${Math.max(10, (voteCounts[candidate.id] || 0) / totalVotes * 100)}%`,
+                              backgroundColor: index === 0 ? '#10B981' : '#3B82F6'
+                            }
+                          ]}
+                        />
+                        <Text style={styles.voteCount}>
+                          {voteCounts[candidate.id] || 0} ({getVotePercentage(candidate.id)})
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </View>
             </View>
           )}
@@ -143,44 +187,88 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     textAlign: 'center',
   },
-  listContainer: { padding: 16 },
-  candidateCard: {
+  listContainer: { paddingBottom: 16 },
+  positionSection: {
+    marginBottom: 24,
+    marginHorizontal: 16,
+  },
+  positionTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1f2937",
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "#10b981",
+  },
+  tableContainer: {
     backgroundColor: "#fff",
-    padding: 16,
     borderRadius: 12,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    elevation: 2,
+    overflow: "hidden",
+    elevation: 3,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#10b981",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "#059669",
+  },
+  tableHeaderText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  colRank: {
+    width: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colPhoto: {
+    width: 70,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colName: {
+    flex: 2,
+    paddingHorizontal: 8,
+  },
+  colVotes: {
+    flex: 2,
   },
   rankBadge: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    backgroundColor: '#1e40af',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: '#3b82f6',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1,
+  },
+  rankBadgeWinner: {
+    backgroundColor: '#10b981',
   },
   rankText: {
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 14,
   },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 16,
+  tableAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 2,
     borderColor: '#e2e8f0',
-  },
-  candidateInfo: {
-    flex: 1,
   },
   candidateName: {
     fontSize: 18,

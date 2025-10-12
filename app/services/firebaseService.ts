@@ -42,6 +42,16 @@ export interface User {
   createdAt: Timestamp;
 }
 
+export interface VotingCycle {
+  id: string;
+  name: string;
+  status: 'draft' | 'live' | 'ended';
+  selectedCandidates: Record<string, string[]>; // position -> candidateIds
+  createdAt: Timestamp;
+  startedAt?: Timestamp;
+  endedAt?: Timestamp;
+}
+
 // Candidate operations
 export const addCandidate = async (candidateData: Omit<Candidate, 'id' | 'createdAt' | 'voteCount'>): Promise<string> => {
   console.log('Adding candidate to Firebase:', candidateData);
@@ -131,9 +141,15 @@ export const submitVote = async (candidateId: string, voterId: string, position:
   console.log('Submitting vote for candidate:', candidateId, 'by voter:', voterId);
 
   try {
-    // Check if user has already voted for this position
+    // Get active cycle
+    const activeCycle = await getActiveCycle();
+    if (!activeCycle) {
+      throw new Error('No active voting cycle');
+    }
+
+    // Check if user has already voted for this position in this cycle
     const votesRef = collection(db, 'votes');
-    const q = query(votesRef, where('voterId', '==', voterId), where('position', '==', position));
+    const q = query(votesRef, where('voterId', '==', voterId), where('position', '==', position), where('cycleId', '==', activeCycle.id));
     const existingVotes = await getDocs(q);
 
     if (!existingVotes.empty) {
@@ -141,11 +157,12 @@ export const submitVote = async (candidateId: string, voterId: string, position:
       throw new Error('Already voted for this position');
     }
 
-    // Submit the vote
+    // Submit the vote with cycleId
     const docRef = await addDoc(collection(db, 'votes'), {
       candidateId,
       voterId,
       position,
+      cycleId: activeCycle.id,
       votedAt: Timestamp.now()
     });
 
@@ -163,12 +180,22 @@ export const submitVote = async (candidateId: string, voterId: string, position:
   }
 };
 
-export const getVoteCounts = async (): Promise<Record<string, number>> => {
-  console.log('Getting vote counts...');
+export const getVoteCounts = async (cycleId?: string): Promise<Record<string, number>> => {
+  console.log('Getting vote counts for cycle:', cycleId || 'all');
 
   try {
     const votesRef = collection(db, 'votes');
-    const querySnapshot = await getDocs(votesRef);
+    let q;
+    
+    if (cycleId) {
+      // Get votes for specific cycle
+      q = query(votesRef, where('cycleId', '==', cycleId));
+    } else {
+      // Get all votes (for backward compatibility)
+      q = query(votesRef);
+    }
+    
+    const querySnapshot = await getDocs(q);
 
     const counts: Record<string, number> = {};
     querySnapshot.forEach((doc) => {
@@ -186,8 +213,14 @@ export const getVoteCounts = async (): Promise<Record<string, number>> => {
 
 export const hasUserVoted = async (voterId: string): Promise<boolean> => {
   try {
+    // Check if user voted in the active cycle
+    const activeCycle = await getActiveCycle();
+    if (!activeCycle) {
+      return false;
+    }
+
     const votesRef = collection(db, 'votes');
-    const q = query(votesRef, where('voterId', '==', voterId));
+    const q = query(votesRef, where('voterId', '==', voterId), where('cycleId', '==', activeCycle.id));
     const existing = await getDocs(q);
     return !existing.empty;
   } catch (error) {
@@ -357,6 +390,166 @@ export const getUserStats = async (): Promise<{ total: number; approved: number;
   ]);
   const approved = all.filter(u => u.approved).length;
   return { total: all.length, approved, pending: pending.length };
+};
+
+// Voting Cycle operations
+export const createVotingCycle = async (name: string): Promise<string> => {
+  console.log('Creating voting cycle:', name);
+
+  try {
+    const docRef = await addDoc(collection(db, 'votingCycles'), {
+      name,
+      status: 'draft',
+      selectedCandidates: {},
+      createdAt: Timestamp.now(),
+    });
+
+    console.log('Voting cycle created successfully with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating voting cycle:', error);
+    throw error;
+  }
+};
+
+export const listVotingCycles = async (): Promise<VotingCycle[]> => {
+  console.log('Fetching voting cycles from Firebase...');
+
+  try {
+    const cyclesRef = collection(db, 'votingCycles');
+    const q = query(cyclesRef, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+
+    console.log(`Found ${querySnapshot.size} voting cycles`);
+
+    const cycles: VotingCycle[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      cycles.push({
+        id: doc.id,
+        name: data.name,
+        status: data.status,
+        selectedCandidates: data.selectedCandidates || {},
+        createdAt: data.createdAt,
+        startedAt: data.startedAt,
+        endedAt: data.endedAt,
+      });
+    });
+
+    console.log('Processed voting cycles:', cycles);
+    return cycles;
+  } catch (error) {
+    console.error('Error fetching voting cycles:', error);
+    throw error;
+  }
+};
+
+export const getActiveCycle = async (): Promise<VotingCycle | null> => {
+  console.log('Fetching active voting cycle...');
+
+  try {
+    const cyclesRef = collection(db, 'votingCycles');
+    const q = query(cyclesRef, where('status', '==', 'live'));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      console.log('No active voting cycle found');
+      return null;
+    }
+
+    const doc = querySnapshot.docs[0];
+    const data = doc.data();
+
+    return {
+      id: doc.id,
+      name: data.name,
+      status: data.status,
+      selectedCandidates: data.selectedCandidates || {},
+      createdAt: data.createdAt,
+      startedAt: data.startedAt,
+      endedAt: data.endedAt,
+    };
+  } catch (error) {
+    console.error('Error fetching active cycle:', error);
+    throw error;
+  }
+};
+
+export const updateVotingCycle = async (id: string, updates: Partial<Omit<VotingCycle, 'id' | 'createdAt'>>): Promise<void> => {
+  console.log('Updating voting cycle:', id, updates);
+
+  try {
+    const cycleRef = doc(db, 'votingCycles', id);
+    await updateDoc(cycleRef, updates);
+    console.log('Voting cycle updated successfully');
+  } catch (error) {
+    console.error('Error updating voting cycle:', error);
+    throw error;
+  }
+};
+
+export const makeCycleLive = async (id: string): Promise<void> => {
+  console.log('Making voting cycle live:', id);
+
+  try {
+    // First, end any currently live cycles
+    const cyclesRef = collection(db, 'votingCycles');
+    const q = query(cyclesRef, where('status', '==', 'live'));
+    const querySnapshot = await getDocs(q);
+
+    const endPromises = querySnapshot.docs.map((d) =>
+      updateDoc(doc(db, 'votingCycles', d.id), {
+        status: 'ended',
+        endedAt: Timestamp.now(),
+      })
+    );
+
+    await Promise.all(endPromises);
+
+    // Clear all votes from previous cycles (optional - comment out if you want to keep historical votes)
+    // Note: This resets the voting for a fresh start
+    console.log('Starting new voting cycle - votes will be tracked separately by cycleId');
+
+    // Now make the selected cycle live
+    const cycleRef = doc(db, 'votingCycles', id);
+    await updateDoc(cycleRef, {
+      status: 'live',
+      startedAt: Timestamp.now(),
+    });
+
+    console.log('Voting cycle is now live');
+  } catch (error) {
+    console.error('Error making cycle live:', error);
+    throw error;
+  }
+};
+
+export const endVotingCycle = async (id: string): Promise<void> => {
+  console.log('Ending voting cycle:', id);
+
+  try {
+    const cycleRef = doc(db, 'votingCycles', id);
+    await updateDoc(cycleRef, {
+      status: 'ended',
+      endedAt: Timestamp.now(),
+    });
+    console.log('Voting cycle ended successfully');
+  } catch (error) {
+    console.error('Error ending voting cycle:', error);
+    throw error;
+  }
+};
+
+export const deleteVotingCycle = async (id: string): Promise<void> => {
+  console.log('Deleting voting cycle:', id);
+
+  try {
+    await deleteDoc(doc(db, 'votingCycles', id));
+    console.log('Voting cycle deleted successfully');
+  } catch (error) {
+    console.error('Error deleting voting cycle:', error);
+    throw error;
+  }
 };
 
 // Default export to satisfy route system requirements
