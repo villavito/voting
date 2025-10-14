@@ -163,16 +163,11 @@ export const submitVote = async (candidateId: string, voterId: string, position:
       voterId,
       position,
       cycleId: activeCycle.id,
+      cycleName: activeCycle.name,
       votedAt: Timestamp.now()
     });
 
-    // Update candidate vote count
-    const candidateRef = doc(db, 'candidates', candidateId);
-    await updateDoc(candidateRef, {
-      voteCount: (await getDocs(query(collection(db, 'votes'), where('candidateId', '==', candidateId)))).size
-    });
-
-    console.log('Vote submitted successfully with ID:', docRef.id);
+    console.log('Vote submitted successfully with ID:', docRef.id, 'for cycle:', activeCycle.name);
     return docRef.id;
   } catch (error) {
     console.error('Error submitting vote:', error);
@@ -191,7 +186,7 @@ export const getVoteCounts = async (cycleId?: string): Promise<Record<string, nu
       // Get votes for specific cycle
       q = query(votesRef, where('cycleId', '==', cycleId));
     } else {
-      // Get all votes (for backward compatibility)
+      // Get all votes - useful for historical data or if no cycle specified
       q = query(votesRef);
     }
     
@@ -200,10 +195,12 @@ export const getVoteCounts = async (cycleId?: string): Promise<Record<string, nu
     const counts: Record<string, number> = {};
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      counts[data.candidateId] = (counts[data.candidateId] || 0) + 1;
+      if (data.candidateId) {
+        counts[data.candidateId] = (counts[data.candidateId] || 0) + 1;
+      }
     });
 
-    console.log('Vote counts:', counts);
+    console.log(`Vote counts for cycle ${cycleId || 'all'}:`, counts, `(${querySnapshot.size} total votes)`);
     return counts;
   } catch (error) {
     console.error('Error getting vote counts:', error);

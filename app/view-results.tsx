@@ -1,8 +1,8 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View, ScrollView, Pressable, RefreshControl } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, Modal } from "react-native";
 import { listCandidates, listVotingCycles } from "./services/firebaseService";
-import { getVoteCounts, getTotalVotes } from "./services/votingService";
+import { getTotalVotes, getVoteCounts } from "./services/votingService";
 
 export default function ViewResultsScreen() {
   const [candidates, setCandidates] = useState<any[]>([]);
@@ -12,6 +12,8 @@ export default function ViewResultsScreen() {
   const [totalVotes, setTotalVotes] = useState(0);
   const [endedCycles, setEndedCycles] = useState<any[]>([]);
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
+  const [currentCycle, setCurrentCycle] = useState<any | null>(null);
+  const [showEndedCycles, setShowEndedCycles] = useState(false);
 
   const loadData = async () => {
     try {
@@ -28,9 +30,9 @@ export default function ViewResultsScreen() {
       setEndedCycles(ended);
       
       // Use the most recent cycle (live or latest ended)
-      let targetCycleId = null;
+      let targetCycle = null;
       if (live) {
-        targetCycleId = live.id;
+        targetCycle = live;
       } else if (ended.length > 0) {
         // Get the most recently ended cycle
         const sortedEnded = [...ended].sort((a, b) => {
@@ -38,18 +40,34 @@ export default function ViewResultsScreen() {
           const bTime = b.endedAt?.seconds || 0;
           return bTime - aTime;
         });
-        targetCycleId = sortedEnded[0].id;
+        targetCycle = sortedEnded[0];
       }
       
-      setSelectedCycleId(targetCycleId);
+      setCurrentCycle(targetCycle);
+      setSelectedCycleId(targetCycle?.id || null);
       
       // Fetch vote counts for the selected cycle
       const [counts, total] = await Promise.all([
-        getVoteCounts(targetCycleId || undefined),
-        getTotalVotes(targetCycleId || undefined),
+        getVoteCounts(targetCycle?.id || undefined),
+        getTotalVotes(targetCycle?.id || undefined),
       ]);
       
-      setCandidates(cands);
+      // Filter candidates to only show those in the current cycle
+      let filteredCandidates = cands;
+      if (targetCycle && targetCycle.selectedCandidates) {
+        // Extract all candidate IDs from the cycle's selectedCandidates
+        const cycleCandidateIds = Object.values(targetCycle.selectedCandidates)
+          .flat() as string[];
+        
+        // Filter candidates to only those selected for this cycle
+        filteredCandidates = cands.filter((candidate: any) => 
+          cycleCandidateIds.includes(candidate.id)
+        );
+        
+        console.log(`Showing ${filteredCandidates.length} candidates from cycle "${targetCycle.name}"`);
+      }
+      
+      setCandidates(filteredCandidates);
       setVoteCounts(counts);
       setTotalVotes(total);
     } catch (error) {
@@ -69,6 +87,18 @@ export default function ViewResultsScreen() {
     loadData();
   };
   
+  // Define position hierarchy
+  const positionHierarchy = [
+    "President",
+    "Vice President",
+    "Secretary",
+    "Treasurer",
+    "Auditor",
+    "P.I.O",
+    "Sgt. at Arms",
+    "Class Representative"
+  ];
+  
   // Group candidates by position with vote counts
   const votingResults = (() => {
     const grouped: Record<string, any[]> = {};
@@ -87,10 +117,13 @@ export default function ViewResultsScreen() {
       grouped[position].sort((a, b) => b.votes - a.votes);
     });
     
-    return Object.keys(grouped).map(position => ({ 
-      position, 
-      candidates: grouped[position] 
-    }));
+    // Sort positions according to hierarchy
+    return positionHierarchy
+      .filter(position => grouped[position]) // Only include positions that have candidates
+      .map(position => ({ 
+        position, 
+        candidates: grouped[position] 
+      }));
   })();
 
   return (
@@ -120,21 +153,20 @@ export default function ViewResultsScreen() {
         </View>
       </View>
 
-      {/* Ended Cycles */}
+      {/* Ended Cycles Button */}
       {endedCycles.length > 0 && (
-        <View style={styles.cyclesSection}>
-          <Text style={styles.sectionTitle}>Ended Voting Cycles</Text>
-          {endedCycles.map((cycle) => (
-            <View key={cycle.id} style={styles.cycleCard}>
-              <Text style={styles.cycleName}>{cycle.name}</Text>
-              <Text style={styles.cycleStatus}>Status: Ended</Text>
-              {cycle.endedAt && (
-                <Text style={styles.cycleDate}>
-                  Ended: {new Date(cycle.endedAt.seconds * 1000).toLocaleString()}
-                </Text>
-              )}
-            </View>
-          ))}
+        <View style={styles.endedCyclesContainer}>
+          <Pressable
+            onPress={() => setShowEndedCycles(true)}
+            style={({ pressed }) => [
+              styles.toggleButton,
+              pressed && styles.buttonPressed
+            ]}
+          >
+            <Text style={styles.toggleButtonText}>
+              📜 View Ended Voting Cycles ({endedCycles.length})
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -173,6 +205,60 @@ export default function ViewResultsScreen() {
           </View>
         )}
       </View>
+
+      {/* Ended Cycles Modal */}
+      <Modal
+        visible={showEndedCycles}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEndedCycles(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Ended Voting Cycles</Text>
+              <Pressable
+                onPress={() => setShowEndedCycles(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView 
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              {endedCycles.map((cycle) => (
+                <View key={cycle.id} style={styles.modalCycleCard}>
+                  <Text style={styles.cycleName}>{cycle.name}</Text>
+                  <Text style={styles.cycleStatus}>Status: Ended</Text>
+                  {cycle.endedAt && (
+                    <Text style={styles.cycleDate}>
+                      Ended: {new Date(cycle.endedAt.seconds * 1000).toLocaleString()}
+                    </Text>
+                  )}
+                  {cycle.startedAt && (
+                    <Text style={styles.cycleDate}>
+                      Started: {new Date(cycle.startedAt.seconds * 1000).toLocaleString()}
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setShowEndedCycles(false)}
+              style={({ pressed }) => [
+                styles.modalCloseButton,
+                pressed && styles.buttonPressed
+              ]}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -348,5 +434,86 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94a3b8',
     textAlign: 'center',
+  },
+  endedCyclesContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  toggleButton: {
+    backgroundColor: '#6366f1',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  buttonPressed: {
+    opacity: 0.7,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    maxHeight: '80%',
+    width: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalCycleCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
+  },
+  modalCloseButton: {
+    backgroundColor: '#6366f1',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalCloseButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

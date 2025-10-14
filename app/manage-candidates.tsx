@@ -39,7 +39,14 @@ export default function ManageCandidatesScreen() {
 
   // Course options
   const courseOptions = [
-    "BSIT",
+    "Agriculture",
+    "CRIM",
+    "BHHM",
+    "Pharmacy",
+    "Midwifery",
+    "BTVTED",
+    "Social Work",
+    "BSBA",
     "CSS"
   ];
 

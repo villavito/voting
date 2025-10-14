@@ -8,14 +8,21 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
   Modal,
-  TextInput,
   ScrollView
 } from "react-native";
-import { listCandidates, hasUserVoted, getActiveCycle, VotingCycle } from './services/firebaseService';
 import { auth } from "../firebase";
-import { submitVote, getUserVote } from "./services/votingService";
 import { getUserData } from "./services/authService";
+import { getActiveCycle, listCandidates, submitVote, hasUserVoted } from "./services/firebaseService";
+import { parseVotingError, logError } from "./services/errorHandler";
+
+interface VotingCycle {
+  id: string;
+  name: string;
+  status: string;
+  selectedCandidates?: Record<string, string[]>;
+}
 
 export default function VotingScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -146,15 +153,20 @@ export default function VotingScreen() {
   };
 
 
-  const checkVotingStatus = () => {
-    if (voterId.trim()) {
-      const userVote = getUserVote(voterId.trim());
-      if (userVote) {
-        setHasVoted(true);
-        Alert.alert("Already Voted", "You have already cast your vote for this election.");
+  // Check if user has already voted
+  useEffect(() => {
+    const checkIfVoted = async () => {
+      if (voterId) {
+        try {
+          const voted = await hasUserVoted(voterId);
+          setHasVoted(voted);
+        } catch (error) {
+          console.error('Error checking vote status:', error);
+        }
       }
-    }
-  };
+    };
+    checkIfVoted();
+  }, [voterId, refreshKey]);
 
   return (
     <View style={styles.container}>
@@ -242,7 +254,12 @@ export default function VotingScreen() {
             keyExtractor={(item) => item.position}
             renderItem={({ item: positionGroup }) => (
               <View style={styles.positionSection}>
-                <Text style={styles.positionTitle}>{positionGroup.position}</Text>
+                <View style={styles.positionHeader}>
+                  <Text style={styles.positionTitle}>{positionGroup.position}</Text>
+                  {positionGroup.position === "Class Representative" && userCourse && (
+                    <Text style={styles.courseIndicator}>({userCourse} only)</Text>
+                  )}
+                </View>
                 <View style={styles.tableContainer}>
                   {/* Table Header */}
                   <View style={styles.tableHeader}>
@@ -519,6 +536,11 @@ const styles = StyleSheet.create({
   positionSection: {
     marginBottom: 24,
   },
+  positionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   positionTitle: {
     fontSize: 20,
     fontWeight: "800",
@@ -529,6 +551,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "#3b82f6",
     alignSelf: "flex-start",
+  },
+  courseIndicator: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6366f1",
+    fontStyle: "italic",
+    marginBottom: 12,
+    paddingBottom: 8,
   },
   listContainer: {
     paddingBottom: 16,

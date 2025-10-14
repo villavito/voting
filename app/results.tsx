@@ -24,7 +24,23 @@ export default function ResultsScreen() {
         getVoteCounts(cycleId),
         getTotalVotes(cycleId)
       ]);
-      setCandidates(candidatesData);
+      
+      // Filter candidates to only show those in the active cycle
+      let filteredCandidates = candidatesData;
+      if (activeCycle && activeCycle.selectedCandidates) {
+        // Extract all candidate IDs from the cycle's selectedCandidates
+        const cycleCandidateIds = Object.values(activeCycle.selectedCandidates)
+          .flat() as string[];
+        
+        // Filter candidates to only those selected for this cycle
+        filteredCandidates = candidatesData.filter((candidate: any) => 
+          cycleCandidateIds.includes(candidate.id)
+        );
+        
+        console.log(`Showing ${filteredCandidates.length} candidates from active cycle "${activeCycle.name}"`);
+      }
+      
+      setCandidates(filteredCandidates);
       setVoteCounts(voteCountsData);
       setTotalVotes(totalVotesData);
     } catch (error) {
@@ -43,6 +59,18 @@ export default function ResultsScreen() {
     setRefreshing(true);
     loadResults();
   };
+
+  // Define position hierarchy
+  const positionHierarchy = [
+    "President",
+    "Vice President",
+    "Secretary",
+    "Treasurer",
+    "Auditor",
+    "P.I.O",
+    "Sgt. at Arms",
+    "Class Representative"
+  ];
 
   // Group candidates by position
   const groupedCandidates = (() => {
@@ -63,10 +91,13 @@ export default function ResultsScreen() {
       });
     });
     
-    return Object.keys(grouped).map(position => ({ 
-      position, 
-      candidates: grouped[position] 
-    }));
+    // Sort positions according to hierarchy
+    return positionHierarchy
+      .filter(position => grouped[position]) // Only include positions that have candidates
+      .map(position => ({ 
+        position, 
+        candidates: grouped[position] 
+      }));
   })();
 
   const getVotePercentage = (candidateId: string) => {

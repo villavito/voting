@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
 import { registerUser } from "./services/authService";
 import { auth } from "../firebase";
+import { parseAuthError, logError } from "./services/errorHandler";
 
 export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState("");
@@ -63,18 +64,9 @@ export default function RegisterScreen() {
         router.replace("/(auth)/login");
       }, 1000);
     } catch (error: any) {
-      console.error("Registration error:", error);
-      let errorMessage = "Failed to register. Please try again.";
-      
-      if (error.code === "auth/email-already-in-use") {
-        errorMessage = "This email is already registered. Please use a different email or login.";
-      } else if (error.code === "auth/weak-password") {
-        errorMessage = "Password should be at least 6 characters long.";
-      } else if (error.code === "auth/invalid-email") {
-        errorMessage = "Please enter a valid email address.";
-      }
-      
-      Alert.alert("Registration Failed", errorMessage);
+      logError(error, 'Registration', { email, displayName, course, studentId });
+      const appError = parseAuthError(error);
+      Alert.alert("Registration Failed", appError.userMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -104,8 +96,29 @@ export default function RegisterScreen() {
       
       {showCourseDropdown && (
         <View style={styles.dropdownList}>
-          <Pressable onPress={() => { setCourse("BSIT"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
-            <Text style={styles.dropdownItemText}>BSIT</Text>
+          <Pressable onPress={() => { setCourse("Agriculture"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>Agriculture</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("CRIM"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>CRIM</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("BHHM"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>BHHM</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("Pharmacy"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>Pharmacy</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("Midwifery"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>Midwifery</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("BTVTED"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>BTVTED</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("Social Work"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>Social Work</Text>
+          </Pressable>
+          <Pressable onPress={() => { setCourse("BSBA"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemText}>BSBA</Text>
           </Pressable>
           <Pressable onPress={() => { setCourse("CSS"); setShowCourseDropdown(false); }} style={styles.dropdownItem}>
             <Text style={styles.dropdownItemText}>CSS</Text>

@@ -1,9 +1,10 @@
-import { Link, router } from "expo-router";
+import { router, Link } from "expo-router";
 import React, { useState, useEffect } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
-import { loginUser, getUserData } from "../services/authService";
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { getUserData } from "../services/authService";
+import { parseAuthError, logError } from "../services/errorHandler";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -59,23 +60,12 @@ export default function LoginScreen() {
 
     setIsSubmitting(true);
     try {
-      await loginUser(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       // The onAuthStateChanged will handle the redirection
     } catch (error: any) {
-      console.error("Login error:", error);
-      let errorMessage = "Failed to login. Please try again.";
-      
-      if (error.code === "auth/invalid-email") {
-        errorMessage = "Please enter a valid email address.";
-      } else if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-        errorMessage = "Invalid email or password.";
-      } else if (error.code === "auth/too-many-requests") {
-        errorMessage = "Too many failed login attempts. Please try again later.";
-      } else if (error.code === "auth/user-disabled") {
-        errorMessage = "This account has been disabled. Please contact support.";
-      }
-      
-      Alert.alert("Login Failed", errorMessage);
+      logError(error, 'Login', { username: email });
+      const appError = parseAuthError(error);
+      Alert.alert("Login Failed", appError.userMessage);
     } finally {
       setIsSubmitting(false);
     }
