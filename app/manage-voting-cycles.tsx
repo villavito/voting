@@ -290,11 +290,15 @@ export default function ManageVotingCyclesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}>
+        <Text style={styles.title}>Manage Voting Cycles</Text>
+      </View>
+      <View style={styles.contentHeader}>
+        <Pressable 
+          onPress={() => router.back()} 
+          style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+        >
           <Text style={styles.backText}>Back</Text>
         </Pressable>
-        <Text style={styles.title}>Manage Voting Cycles</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       {loading ? (
@@ -402,7 +406,22 @@ export default function ManageVotingCyclesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Voting Cycle</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create New Voting Cycle</Text>
+              <Pressable 
+                onPress={() => {
+                  setShowCreateModal(false);
+                  setCycleName("");
+                  setIsCreating(false);
+                }}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.buttonPressed
+                ]}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </Pressable>
+            </View>
             
             <View style={styles.formGroup}>
               <Text style={styles.label}>Cycle Name</Text>
@@ -529,29 +548,41 @@ export default function ManageVotingCyclesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#f8fafc" 
+  },
   header: { 
-    flexDirection: "row", 
-    alignItems: "center", 
     padding: 16, 
     backgroundColor: "#fff", 
     borderBottomWidth: 1, 
     borderBottomColor: "#e2e8f0" 
   },
-  backButton: { 
-    backgroundColor: "#6b7280", 
-    paddingVertical: 8, 
-    paddingHorizontal: 12, 
-    borderRadius: 8 
+  contentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 0,
   },
-  backText: { color: "#fff", fontWeight: "600" },
+  backButton: { 
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+  },
+  backText: { 
+    color: "#3b82f6", 
+    fontWeight: "500",
+    fontSize: 16
+  },
   title: { 
     fontSize: 20, 
     fontWeight: "800", 
     color: "#1f2937",
-    marginLeft: 16
+    textAlign: "center"
   },
-  headerSpacer: { flex: 1 },
+  buttonPressed: {
+    opacity: 0.7,
+  },
   
   emptyContainer: { 
     flex: 1, 

@@ -5,13 +5,16 @@ import { Alert, Image, ImageBackground, Pressable, StyleSheet, Text, View } from
 import { auth } from "../firebase";
 import { getUserData } from "./services/authService";
 import { getActiveCycle } from "./services/firebaseService";
+import VotingNotification from "./components/VotingNotification";
 
 export default function HomeScreen() {
   const params = useLocalSearchParams<{ username?: string }>();
   const username = params.username || "User";
   const [isVotingLive, setIsVotingLive] = useState(false);
   const [cycleName, setCycleName] = useState("");
+  const [cycleId, setCycleId] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -36,56 +39,61 @@ export default function HomeScreen() {
     // Don't run this for admins
     if (isAdmin) return;
 
-    let intervalId: any;
+    let intervalId: any = null;
+    let lastCycleId: string | null = null;
 
     const checkForActiveCycle = async () => {
       try {
         const activeCycle = await getActiveCycle();
+        const currentCycleId = activeCycle?.id || null;
+        
+        // Only log when cycle status changes
+        if (currentCycleId !== lastCycleId) {
+          console.log(`Voting cycle status changed. Current: ${currentCycleId || 'none'}`);
+          lastCycleId = currentCycleId;
+        }
         
         if (activeCycle && !isVotingLive) {
-          // Voting just became live
+          console.log(`Voting cycle started: ${activeCycle.name} (${activeCycle.id})`);
           setIsVotingLive(true);
           setCycleName(activeCycle.name);
-          
-          Alert.alert(
-            "🎉 Voting is Now Open!",
-            `The "${activeCycle.name}" voting cycle is now live. You can now cast your vote!`,
-            [
-              {
-                text: "Vote Now",
-                onPress: () => router.push("/vote"),
-              },
-              {
-                text: "Later",
-                style: "cancel",
-              },
-            ]
-          );
+          setCycleId(activeCycle.id);
+          setShowNotification(true);
         } else if (!activeCycle && isVotingLive) {
-          // Voting ended
+          console.log('Voting cycle ended');
           setIsVotingLive(false);
           setCycleName("");
+          setCycleId("");
+          setShowNotification(false);
         } else if (activeCycle) {
-          // Update cycle info
-          setIsVotingLive(true);
-          setCycleName(activeCycle.name);
+          // Update cycle info if needed
+          if (cycleName !== activeCycle.name) {
+            console.log(`Voting cycle updated: ${activeCycle.name}`);
+            setCycleName(activeCycle.name);
+          }
+          if (!isVotingLive) {
+            setIsVotingLive(true);
+          }
         }
       } catch (error) {
-        console.error("Error checking for active cycle:", error);
+        console.error("Error in voting cycle check:", error);
       }
     };
 
     // Check immediately on mount
     checkForActiveCycle();
 
-    // Poll every 10 seconds for cycle status
-    intervalId = setInterval(checkForActiveCycle, 10000);
+    // Poll every 30 seconds instead of 10 to reduce load
+    intervalId = setInterval(checkForActiveCycle, 30000);
 
     // Cleanup interval on unmount
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
     };
-  }, [isVotingLive, isAdmin]);
+  }, [isVotingLive, isAdmin, cycleName]);
 
   const handleLogout = async () => {
     try {
@@ -150,6 +158,14 @@ export default function HomeScreen() {
       <View style={styles.dashboardBox}>
         <Text style={styles.dashboardText}>Welcome to your dashboard.</Text>
       </View>
+
+      {/* Voting Notification Modal */}
+      <VotingNotification
+        visible={showNotification}
+        cycleName={cycleName}
+        cycleId={cycleId}
+        onClose={() => setShowNotification(false)}
+      />
     </ImageBackground>
   );
 }

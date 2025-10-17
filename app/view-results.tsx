@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, Modal } from "react-native";
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { listCandidates, listVotingCycles } from "./services/firebaseService";
 import { getTotalVotes, getVoteCounts } from "./services/votingService";
 

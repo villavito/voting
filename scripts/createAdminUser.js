@@ -24,7 +24,7 @@ async function createAdminUser() {
       disabled: false,
     });
 
-    const user = userRecord;
+    const user = userrRecord;
     console.log('✅ Admin user created:', user.uid);
 
     // 2️⃣ Save admin data to Firestore

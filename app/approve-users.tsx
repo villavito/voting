@@ -40,107 +40,163 @@ export default function ApproveUsersScreen() {
 
   const onDisapprove = (email: string, name: string) => {
     Alert.alert("Disapprove User", `Are you sure you want to disapprove ${name}? This action cannot be undone.`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Disapprove", style: "destructive", onPress: () => {
-        const success = disapproveUser(email);
-        if (success) {
-          refresh();
-          Alert.alert("Success", `${name} has been disapproved and removed.`);
-        } else {
-          Alert.alert("Error", `Failed to disapprove ${name}. Please try again.`);
+      { 
+        text: "Cancel", 
+        style: "cancel" 
+      },
+      { 
+        text: "Disapprove", 
+        style: "destructive", 
+        onPress: async () => {
+          try {
+            const success = await disapproveUser(email);
+            if (success) {
+              refresh();
+              Alert.alert("Success", `${name} has been disapproved and removed.`);
+            } else {
+              Alert.alert("Error", `Failed to disapprove ${name}. Please try again.`);
+            }
+          } catch (error) {
+            console.error("Error disapproving user:", error);
+            Alert.alert("Error", `An error occurred while disapproving ${name}. Please try again.`);
+          }
         }
-      }}
+      }
     ]);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}>
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
         <Text style={styles.title}>Approve User Registration</Text>
-        <View style={styles.headerSpacer} />
       </View>
+      
+      <View style={styles.mainContainer}>
+        <Pressable 
+          onPress={() => router.back()} 
+          style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
 
-      {loading ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptySubtext}>Loading...</Text>
-        </View>
-      ) : pendingUsers.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>✅</Text>
-          <Text style={styles.emptyText}>All caught up!</Text>
-          <Text style={styles.emptySubtext}>No pending user registrations to approve.</Text>
-        </View>
-      ) : (
-        <View style={styles.contentContainer}>
-          <View style={styles.statsContainer}>
-            <Text style={styles.statsText}>
-              {pendingUsers.length} user{pendingUsers.length !== 1 ? 's' : ''} waiting for approval
-            </Text>
+        {loading ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptySubtext}>Loading...</Text>
           </View>
-          
-          <FlatList
-            data={pendingUsers}
-            keyExtractor={(item) => item.email}
-            renderItem={({ item }) => (
-              <View style={styles.userCard}>
-                <Image
-                  source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(item.displayName || item.email)}&background=f59e0b&color=fff&size=80` }}
-                  style={styles.avatar}
-                />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.displayName || "Unnamed User"}</Text>
-                  <Text style={styles.userEmail}>{item.email}</Text>
-                  {item.course && <Text style={styles.userMeta}>Course: {item.course}</Text>}
-                  {item.studentId && <Text style={styles.userMeta}>Student ID: {item.studentId}</Text>}
+        ) : pendingUsers.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>✅</Text>
+            <Text style={styles.emptyText}>All caught up!</Text>
+            <Text style={styles.emptySubtext}>No pending user registrations to approve.</Text>
+          </View>
+        ) : (
+          <View style={styles.contentContainer}>
+            <View style={styles.statsContainer}>
+              <Text style={styles.statsText}>
+                {pendingUsers.length} user{pendingUsers.length !== 1 ? 's' : ''} waiting for approval
+              </Text>
+            </View>
+            
+            <FlatList
+              data={pendingUsers}
+              keyExtractor={(item) => item.email}
+              renderItem={({ item }) => (
+                <View style={styles.userCard}>
+                  <Image
+                    source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(item.displayName || item.email)}&background=f59e0b&color=fff&size=80` }}
+                    style={styles.avatar}
+                  />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{item.displayName || "Unnamed User"}</Text>
+                    <Text style={styles.userEmail}>{item.email}</Text>
+                    {item.course && <Text style={styles.userMeta}>Course: {item.course}</Text>}
+                    {item.studentId && <Text style={styles.userMeta}>Student ID: {item.studentId}</Text>}
+                  </View>
+                  <View style={styles.actions}>
+                    <Pressable 
+                      onPress={() => onApprove(item.email, item.displayName || item.email)} 
+                      style={({ pressed }) => [styles.approveButton, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={styles.buttonText}>✓ Approve</Text>
+                    </Pressable>
+                    <Pressable 
+                      onPress={() => onDisapprove(item.email, item.displayName || item.email)}
+                      style={({ pressed }) => [styles.disapproveButton, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={styles.buttonText}>✗ Deny</Text>
+                    </Pressable>
+                  </View>
                 </View>
-                <View style={styles.actions}>
-                  <Pressable 
-                    onPress={() => onApprove(item.email, item.displayName || item.email)} 
-                    style={({ pressed }) => [styles.approveButton, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={styles.approveText}>✓ Approve</Text>
-                  </Pressable>
-                  <Pressable 
-                    onPress={() => onDisapprove(item.email, item.displayName || item.email)}
-                    style={({ pressed }) => [styles.disapproveButton, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={styles.disapproveText}>✗ Deny</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-            contentContainerStyle={styles.listContainer}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-      )}
+              )}
+              contentContainerStyle={styles.listContainer}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  header: { 
-    flexDirection: "row", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
-    padding: 16, 
-    backgroundColor: "#fff", 
-    borderBottomWidth: 1, 
-    borderBottomColor: "#e2e8f0" 
+  container: { 
+    flex: 1, 
+    backgroundColor: "#f8fafc" 
   },
-  backButton: { backgroundColor: "#6b7280", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  backText: { color: "#fff", fontWeight: "600" },
-  title: { fontSize: 20, fontWeight: "800", color: "#1f2937" },
-  headerSpacer: { flex: 1 },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 32 },
-  emptyIcon: { fontSize: 64, marginBottom: 16 },
-  emptyText: { fontSize: 24, fontWeight: "800", color: "#1f2937", marginBottom: 8 },
-  emptySubtext: { fontSize: 16, color: "#6b7280", textAlign: "center" },
-  contentContainer: { flex: 1, padding: 16 },
+  header: {
+    padding: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0"
+  },
+  mainContainer: {
+    flex: 1,
+    padding: 16
+  },
+  backButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    marginBottom: 8,
+    alignSelf: 'flex-start'
+  },
+  backText: {
+    color: "#3b82f6",
+    fontSize: 14,
+    fontWeight: "500"
+  },
+  buttonPressed: {
+    opacity: 0.7,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1f2937"
+  },
+  emptyContainer: { 
+    flex: 1, 
+    justifyContent: "center", 
+    alignItems: "center", 
+    padding: 32 
+  },
+  emptyIcon: { 
+    fontSize: 64, 
+    marginBottom: 16 
+  },
+  emptyText: { 
+    fontSize: 24, 
+    fontWeight: "800", 
+    color: "#1f2937", 
+    marginBottom: 8 
+  },
+  emptySubtext: { 
+    fontSize: 16, 
+    color: "#6b7280", 
+    textAlign: "center" 
+  },
+  contentContainer: { 
+    flex: 1 
+  },
   statsContainer: { 
     backgroundColor: "#e0f2fe", 
     padding: 12, 
@@ -212,12 +268,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     minWidth: 100,
   },
-  approveText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  disapproveText: {
+  buttonText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,

@@ -409,7 +409,21 @@ export default function VotingScreen() {
                   if (allSuccess) {
                     setHasVoted(true);
                     setShowVoteModal(false);
-                    Alert.alert('Votes Submitted', `Your ${Object.keys(selectedByPosition).length} vote${Object.keys(selectedByPosition).length > 1 ? 's have' : ' has'} been recorded successfully.`);
+                    Alert.alert(
+                      '✅ Votes Submitted Successfully!', 
+                      `Your ${Object.keys(selectedByPosition).length} vote${Object.keys(selectedByPosition).length > 1 ? 's have' : ' has'} been recorded successfully. Thank you for participating!`,
+                      [
+                        {
+                          text: 'Go to Home',
+                          onPress: () => router.push('/home'),
+                          style: 'default',
+                        },
+                        {
+                          text: 'View Results',
+                          onPress: () => router.push('/results'),
+                        },
+                      ]
+                    );
                   } else {
                     setShowVoteModal(false);
                     Alert.alert('Vote Failed', 'You have already voted in this election.');

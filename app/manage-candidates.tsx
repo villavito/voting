@@ -184,11 +184,15 @@ export default function ManageCandidatesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}>
+        <Text style={styles.title}>Manage Candidates</Text>
+      </View>
+      <View style={styles.contentHeader}>
+        <Pressable 
+          onPress={() => router.back()} 
+          style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+        >
           <Text style={styles.backText}>Back</Text>
         </Pressable>
-        <Text style={styles.title}>Manage Candidates</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       {loading ? (
@@ -316,9 +320,20 @@ export default function ManageCandidatesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editingId ? 'Edit Candidate' : 'Add New Candidate'}
-            </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingId ? 'Edit Candidate' : 'Add New Candidate'}
+              </Text>
+              <Pressable 
+                onPress={resetForm}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.buttonPressed
+                ]}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </Pressable>
+            </View>
             
             <View style={styles.formGroup}>
               <Text style={styles.label}>Full Name</Text>
@@ -434,29 +449,40 @@ export default function ManageCandidatesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#f8fafc" 
+  },
   header: { 
-    flexDirection: "row", 
-    alignItems: "center", 
     padding: 16, 
     backgroundColor: "#fff", 
     borderBottomWidth: 1, 
-    borderBottomColor: "#e2e8f0" 
+    borderBottomColor: "#e2e8f0",
+    alignItems: 'center'
+  },
+  contentHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 0,
   },
   backButton: { 
-    backgroundColor: "#6b7280", 
-    paddingVertical: 8, 
-    paddingHorizontal: 12, 
-    borderRadius: 8 
+    paddingVertical: 2,
+    paddingHorizontal: 0,
   },
-  backText: { color: "#fff", fontWeight: "600" },
+  backText: { 
+    color: "#3b82f6", 
+    fontWeight: "500",
+    fontSize: 14
+  },
   title: { 
     fontSize: 20, 
     fontWeight: "800", 
     color: "#1f2937",
-    marginLeft: 16
+    textAlign: "center"
   },
-  headerSpacer: { flex: 1 },
+  buttonPressed: {
+    opacity: 0.7,
+  },
   
   // Empty State
   emptyContainer: { 
@@ -602,12 +628,31 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+  },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#1f2937',
-    marginBottom: 24,
+    flex: 1,
     textAlign: 'center',
+  },
+  closeButton: {
+    padding: 8,
+    marginLeft: 'auto',
+    position: 'absolute',
+    right: 0,
+    top: -10,
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: '#6b7280',
+    lineHeight: 24,
   },
   positionSection: {
     marginBottom: 24,

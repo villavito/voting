@@ -1,10 +1,11 @@
-import { router, Link } from "expo-router";
-import React, { useState, useEffect } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
+import { Link, router } from "expo-router";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { auth } from "../../firebase";
 import { getUserData } from "../services/authService";
-import { parseAuthError, logError } from "../services/errorHandler";
+import { logError, parseAuthError } from "../services/errorHandler";
+import PasswordVisibilityToggle from "../components/PasswordVisibilityToggle";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -88,7 +89,7 @@ export default function LoginScreen() {
       >
         <Text style={styles.backText}>Back</Text>
       </Pressable>
-      <Text style={styles.title}>Sign-up</Text>
+      <Text style={styles.title}>Login</Text>
       <TextInput
         placeholder="Email"
         autoCapitalize="none"
@@ -108,9 +109,13 @@ export default function LoginScreen() {
           onChangeText={setPassword}
           style={[styles.input, styles.passwordInput]}
         />
-        <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-          <Text style={styles.eyeText}>{showPassword ? "🫣" : "🤔"}</Text>
-        </Pressable>
+        <View style={styles.eyeButton}>
+          <PasswordVisibilityToggle
+            isVisible={showPassword}
+            onToggle={() => setShowPassword(!showPassword)}
+            color="#3b82f6"
+          />
+        </View>
       </View>
 
       <Pressable 
@@ -168,12 +173,8 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     position: 'absolute',
-    right: 15,
-    top: 15,
-    padding: 5,
-  },
-  eyeText: {
-    fontSize: 20,
+    right: 10,
+    top: 12,
   },
   button: {
     backgroundColor: '#3b82f6',
@@ -211,15 +212,12 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#6b7280',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    padding: 8,
     marginBottom: 40,
   },
   backText: {
-    color: '#fff',
+    color: '#3b82f6',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 16,
   },
 });
